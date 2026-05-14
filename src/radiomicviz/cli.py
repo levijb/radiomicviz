@@ -65,13 +65,15 @@ def generate_csv(study_folder, output_csv_name):
               help="Output CSV path (default: features.csv)")
 @click.option("--mode", type=click.Choice(["roi", "voxelwise"]), default="roi",
               help="Extraction mode")
+@click.option("--output-4d", default=None, type=click.Path(),
+              help="Save voxelwise feature maps as a 4D NIfTI (requires --mode voxelwise)")
 @click.option("-l", "--label", type=int, default=None,
               help="Specific mask label to extract")
 @click.option("--modality", default=None, help="Modality label (e.g. T1, FLAIR)")
 @click.option("--subject-id", default=None, help="Subject identifier for metadata")
 @click.option("--skip-validation", is_flag=True, help="Skip input validation")
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output")
-def extract(image, mask, preset, config, output, mode, label, modality,
+def extract(image, mask, preset, config, output, mode, output_4d, label, modality,
             subject_id, skip_validation, verbose):
     """Extract radiomic features from a single image-mask pair."""
     _setup_logging(verbose)
@@ -87,6 +89,14 @@ def extract(image, mask, preset, config, output, mode, label, modality,
         result.to_csv(output)
         click.echo(result.summary())
         click.echo(f"\nFeatures saved to {output}")
+
+        if output_4d:
+            if mode != "voxelwise":
+                click.secho("Warning: --output-4d ignored (requires --mode voxelwise)",
+                            fg="yellow", err=True)
+            else:
+                result.to_4d_nifti(output_4d)
+                click.echo(f"4D feature maps saved to {output_4d}")
     except Exception as exc:
         click.secho(f"Error: {exc}", fg="red", err=True)
         raise SystemExit(1)
@@ -106,6 +116,8 @@ def extract(image, mask, preset, config, output, mode, label, modality,
 @click.option("-o", "--output-dir", default="./radiomics_output/",
               help="Output directory")
 @click.option("--mode", type=click.Choice(["roi", "voxelwise"]), default="roi")
+@click.option("--save-maps", is_flag=True,
+              help="Save per-subject 4D NIfTI feature maps (requires --mode voxelwise)")
 @click.option("-l", "--label", type=int, default=None,
               help="Label to extract (overrides per-subject)")
 @click.option("--label-col", default=None, help="Column with per-subject labels")
@@ -115,12 +127,17 @@ def extract(image, mask, preset, config, output, mode, label, modality,
 @click.option("--skip-validation", is_flag=True)
 @click.option("-v", "--verbose", is_flag=True)
 def batch_extract_cmd(subjects, image_col, mask_col, preset, config, output_dir,
-                      mode, label, label_col, subject_id_col, modality, n_jobs,
-                      skip_validation, verbose):
+                      mode, save_maps, label, label_col, subject_id_col, modality,
+                      n_jobs, skip_validation, verbose):
     """Extract radiomic features from a cohort of subjects."""
     _setup_logging(verbose)
 
     from radiomicviz import batch_extract
+
+    if save_maps and mode != "voxelwise":
+        click.secho("Warning: --save-maps ignored (requires --mode voxelwise)",
+                    fg="yellow", err=True)
+        save_maps = False
 
     try:
         results = batch_extract(
@@ -128,7 +145,7 @@ def batch_extract_cmd(subjects, image_col, mask_col, preset, config, output_dir,
             preset=preset, config=config, mode=mode, label=label,
             label_col=label_col, subject_id_col=subject_id_col,
             modality=modality, n_jobs=n_jobs, output_dir=output_dir,
-            skip_validation=skip_validation,
+            skip_validation=skip_validation, save_maps=save_maps,
         )
         click.echo(f"\nExtracted {len(results)} subjects → {output_dir}")
     except Exception as exc:

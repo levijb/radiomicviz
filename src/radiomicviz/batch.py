@@ -52,6 +52,7 @@ def batch_extract(
     output_dir: Optional[Union[str, Path]] = None,
     skip_validation: bool = False,
     continue_on_error: bool = True,
+    save_maps: bool = False,
 ) -> dict[str, ExtractionResult]:
     """
     Extract radiomics features from a cohort of subjects.
@@ -154,6 +155,8 @@ def batch_extract(
     # -- Execute -----------------------------------------------------------
     t0 = time.time()
 
+    retain_mask = save_maps and mode == "voxelwise"
+
     if n_jobs == 1:
         # Sequential — simpler debugging, no joblib overhead
         raw_results = []
@@ -164,6 +167,7 @@ def batch_extract(
                     mode=mode, modality=modality,
                     skip_validation=skip_validation,
                     continue_on_error=continue_on_error,
+                    retain_mask=retain_mask,
                 )
             )
     else:
@@ -174,6 +178,7 @@ def batch_extract(
                 mode=mode, modality=modality,
                 skip_validation=skip_validation,
                 continue_on_error=continue_on_error,
+                retain_mask=retain_mask,
             )
             for job in jobs
         )
@@ -194,7 +199,7 @@ def batch_extract(
     if output_dir:
         _save_batch_outputs(
             results, failures, output_dir, per_subject_dir,
-            subjects_csv, total_time,
+            subjects_csv, total_time, save_maps=save_maps,
         )
 
     # -- Summary -----------------------------------------------------------
@@ -237,6 +242,7 @@ def _extract_one(
     modality: Optional[str],
     skip_validation: bool,
     continue_on_error: bool,
+    retain_mask: bool = False,
 ) -> tuple[str, Union[ExtractionResult, str]]:
     """Extract one subject. Returns (subject_id, result_or_error_string)."""
     sub_id = job["subject_id"]
@@ -253,7 +259,7 @@ def _extract_one(
             modality=modality,
             subject_id=sub_id,
             skip_validation=skip_validation,
-            retain_mask=False,  # don't hold masks in memory for batch
+            retain_mask=retain_mask,
         )
         return (sub_id, result)
 
@@ -272,13 +278,16 @@ def _save_batch_outputs(
     per_subject_dir: Path,
     subjects_csv: Path,
     total_time: float,
+    save_maps: bool = False,
 ) -> None:
     """Save combined CSV, per-subject CSVs, and manifest."""
 
-    # Per-subject CSVs
+    # Per-subject CSVs (and optional 4D NIfTI maps)
     for sub_id, result in results.items():
         safe_id = sub_id.replace("/", "_").replace(" ", "_")
         result.to_csv(per_subject_dir / f"{safe_id}.csv", include_metadata=False)
+        if save_maps and result.feature_maps:
+            result.to_4d_nifti(per_subject_dir / f"{safe_id}_maps.nii.gz")
 
     # Combined CSV
     if results:
