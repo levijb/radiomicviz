@@ -29,7 +29,7 @@ from typing import Any, Optional, Union
 import pandas as pd
 
 from radiomicviz._version import __version__
-from radiomicviz.extract import extract, _infer_modality, _infer_session, _mask_stem
+from radiomicviz.extract import extract
 from radiomicviz.result import ExtractionResult
 
 logger = logging.getLogger("radiomicviz.batch")
@@ -135,8 +135,8 @@ def batch_extract(
     if output_dir:
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        per_subject_dir = output_dir / "per_subject"
-        per_subject_dir.mkdir(exist_ok=True)
+        subjects_dir = output_dir / "subjects"
+        subjects_dir.mkdir(exist_ok=True)
 
     # -- Build job list ----------------------------------------------------
     jobs = []
@@ -193,7 +193,7 @@ def batch_extract(
     # -- Save outputs ------------------------------------------------------
     if output_dir:
         _save_batch_outputs(
-            results, failures, output_dir, per_subject_dir,
+            results, failures, output_dir, subjects_dir,
             subjects_csv, total_time, save_maps=save_maps
         )
 
@@ -267,7 +267,7 @@ def _save_batch_outputs(
     results: dict[str, ExtractionResult],
     failures: list[dict[str, str]],
     output_dir: Path,
-    per_subject_dir: Path,
+    subjects_dir: Path,
     subjects_csv: Path,
     total_time: float,
     save_maps: bool = False,
@@ -277,19 +277,11 @@ def _save_batch_outputs(
     # Per-subject CSVs (and optional 4D NIfTI maps)
     for sub_id, result in results.items():
         safe_id = sub_id.replace("/", "_").replace(" ", "_")
-        sub_dir = per_subject_dir / safe_id
+        sub_dir = subjects_dir / safe_id
         sub_dir.mkdir(exist_ok=True)
-        result.to_csv(sub_dir / f"{safe_id}.csv", include_metadata=False)
+        result.to_csv(sub_dir / f"{safe_id}_roi_features.csv", include_metadata=False)
         if save_maps and result.feature_maps:
-            modality = _infer_modality(result.metadata.image_path)
-            session = _infer_session(result.metadata.image_path)
-            mask_name = _mask_stem(result.metadata.mask_path)
-            parts = [safe_id]
-            if session:
-                parts.append(session)
-            parts.extend([modality, mask_name])
-            fname = "_".join(parts) + "_features4d.nii.gz"
-            result.to_4d_nifti(sub_dir / fname)
+            result.to_4d_nifti(sub_dir / f"{safe_id}_voxelwise_4d.nii.gz")
 
     # Combined CSV
     if results:

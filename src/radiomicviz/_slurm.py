@@ -168,10 +168,16 @@ def generate_slurm_scripts(
             mode, label, modality,
         )
     elif strategy == "chunked":
+        base_cmd_chunked = _build_base_cmd(
+            image_col=image_col, mask_col=mask_col, preset=preset,
+            config=config, output_dir=None, mode=mode, label=label,
+            label_col=label_col, subject_id_col=subject_id_col,
+            modality=modality, n_jobs=n_jobs,
+        )
         return _gen_chunked(
-            subjects_csv, base_cmd, chunks, script_dir, log_dir,
+            subjects_csv, base_cmd_chunked, chunks, script_dir, log_dir,
             partition, constraint, time_limit, mem,
-            conda_env, conda_sh, image_col, mask_col,
+            conda_env, conda_sh, image_col, mask_col, output_dir,
         )
     else:
         raise ValueError(f"Unknown strategy '{strategy}'. Use 'single', 'array', or 'chunked'.")
@@ -286,7 +292,7 @@ print(f'Merged {{len(csvs)}} files → {output_dir}/combined_features.csv')
 def _gen_chunked(
     subjects_csv, base_cmd, chunks, script_dir, log_dir,
     partition, constraint, time_limit, mem,
-    conda_env, conda_sh, image_col, mask_col,
+    conda_env, conda_sh, image_col, mask_col, output_dir,
 ) -> list[Path]:
     df = pd.read_csv(subjects_csv)
     n_subjects = len(df)
@@ -325,7 +331,7 @@ echo "Processing chunk $CHUNK_IDX: $CHUNK_CSV"
 radiomicviz batch-extract \\
     --subjects "$CHUNK_CSV" \\
     {base_cmd} \\
-    -o ./radiomics_output/chunk_$CHUNK_IDX/
+    -o {output_dir}/chunk_$CHUNK_IDX/
 
 echo "Chunk $CHUNK_IDX complete: $(date)"
 """
@@ -333,7 +339,25 @@ echo "Chunk $CHUNK_IDX complete: $(date)"
     path.write_text(script)
     path.chmod(0o755)
 
-    return [path]
+    # Generate a merge script to combine per-chunk combined_features.csv files
+    merge_script = f"""#!/bin/bash
+# Run this AFTER all chunked jobs complete to merge per-chunk results
+echo "Merging chunk results from {output_dir}..."
+python -c "
+import pandas as pd
+from pathlib import Path
+csvs = sorted(Path('{output_dir}').glob('chunk_*/combined_features.csv'))
+dfs = [pd.read_csv(c) for c in csvs]
+combined = pd.concat(dfs, ignore_index=True)
+combined.to_csv('{output_dir}/combined_features.csv', index=False)
+print(f'Merged {{len(csvs)}} chunk files → {output_dir}/combined_features.csv')
+"
+"""
+    merge_path = script_dir / "merge_results.sh"
+    merge_path.write_text(merge_script)
+    merge_path.chmod(0o755)
+
+    return [path, merge_path]
 
 
 # ---------------------------------------------------------------------------
