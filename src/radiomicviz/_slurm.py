@@ -37,7 +37,6 @@ _SLURM_HEADER = """\
 #SBATCH --output={log_dir}/{job_name}_%j{array_idx_suffix}.log
 #SBATCH --error={log_dir}/{job_name}_%j{array_idx_suffix}.err
 #SBATCH --time={time_limit}
-#SBATCH --constraint={constraint}
 {partition_line}{constraint_line}{array_line}
 set -euo pipefail
 
