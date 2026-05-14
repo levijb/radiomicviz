@@ -1,0 +1,23 @@
+# radiomicviz preset: mri-firstorder
+# First-order statistics + shape features. No texture.
+# Fast extraction, good for initial QC or when ROIs are too small for texture.
+
+setting:
+  binCount: 32
+  geometryTolerance: 1e-4
+  label: 1
+  interpolator: 'sitkBSpline'
+  resampledPixelSpacing: null
+  normalize: true
+  normalizeScale: 100
+  voxelArrayShift: 300
+  preCrop: true
+  correctMask: true
+  additionalInfo: true
+
+imageType:
+  Original: {}
+
+featureClass:
+  shape:
+  firstorder:

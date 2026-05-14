@@ -1,0 +1,51 @@
+# radiomicviz preset: mri-default
+# Balanced extraction for MRI data. All major feature classes, original image only.
+# Good starting point for most analyses.
+
+setting:
+  binCount: 32
+  geometryTolerance: 1e-4
+  label: 1
+  interpolator: 'sitkBSpline'
+  resampledPixelSpacing: null  # no resampling — assumes images are already in standard space
+  normalize: true
+  normalizeScale: 100
+  voxelArrayShift: 300
+  preCrop: true
+  correctMask: true
+  additionalInfo: true
+  minimumROIDimensions: 2
+  minimumROISize: null
+
+imageType:
+  Original: {}
+
+featureClass:
+  shape:
+  firstorder:
+  glcm:
+    - 'Autocorrelation'
+    - 'JointAverage'
+    - 'ClusterProminence'
+    - 'ClusterShade'
+    - 'ClusterTendency'
+    - 'Contrast'
+    - 'Correlation'
+    - 'DifferenceAverage'
+    - 'DifferenceEntropy'
+    - 'DifferenceVariance'
+    - 'JointEnergy'
+    - 'JointEntropy'
+    - 'Imc1'
+    - 'Imc2'
+    - 'Idm'
+    - 'Idmn'
+    - 'Id'
+    - 'Idn'
+    - 'InverseVariance'
+    - 'MaximumProbability'
+    - 'SumEntropy'
+    - 'SumSquares'
+  glrlm:
+  glszm:
+  gldm:

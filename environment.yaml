@@ -1,0 +1,19 @@
+name: radiomicviz
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - pandas
+  - nibabel
+  - scipy
+  - joblib
+  - click
+  - pytest
+  - pytest-cov
+  - pre-commit
+  - flake8
+  - black
+  - isort

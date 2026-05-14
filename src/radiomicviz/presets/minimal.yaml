@@ -1,0 +1,30 @@
+# radiomicviz preset: minimal
+# Shape + basic first-order stats only. Fastest extraction.
+# Use for sanity checks, debugging pipelines, or when ROIs are very small.
+
+setting:
+  binCount: 32
+  geometryTolerance: 1e-4
+  label: 1
+  interpolator: 'sitkBSpline'
+  resampledPixelSpacing: null
+  normalize: true
+  normalizeScale: 100
+  preCrop: true
+  correctMask: true
+  additionalInfo: true
+
+imageType:
+  Original: {}
+
+featureClass:
+  shape:
+  firstorder:
+    - 'Mean'
+    - 'Median'
+    - 'StandardDeviation'
+    - 'Minimum'
+    - 'Maximum'
+    - 'Range'
+    - 'Energy'
+    - 'Entropy'

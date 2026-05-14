@@ -1,0 +1,94 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel", "numpy>=1.24"]
+build-backend = "setuptools.build_meta"
+[project]
+name = "radiomicviz"
+version = "0.1.0"
+description = "Interactive 3D radiomics extraction, visualization, and analysis for neuroimaging"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "Levi"},
+]
+keywords = ["radiomics", "neuroimaging", "MRI", "pyradiomics", "visualization"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "pyradiomics>=3.0,<3.1",
+    "SimpleITK>=2.0",
+    "nibabel>=4.0",
+    "numpy>=1.21",
+    "pandas>=1.4",
+    "pyyaml>=6.0",
+    "click>=8.0",
+    "rich>=12.0",          # pretty CLI output
+    "joblib>=1.2",         # parallel processing (better than multiprocessing for this)
+]
+
+[project.optional-dependencies]
+viewer = [
+    "panel>=1.0",
+    "holoviews>=1.15",
+    "bokeh>=3.0",
+    "nilearn>=0.10",
+    "vtk>=9.0",
+    "pyvista>=0.38",
+    "matplotlib>=3.5",
+]
+analysis = [
+    "scikit-learn>=1.2",
+    "scipy>=1.9",
+    "shap>=0.42",
+    "umap-learn>=0.5",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+    "sphinx>=6.0",
+    "sphinx-rtd-theme>=1.2",
+]
+all = ["radiomicviz[viewer,analysis,dev]"]
+
+[project.scripts]
+radiomicviz = "radiomicviz.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/YOUR_USERNAME/radiomicviz"
+Documentation = "https://radiomicviz.readthedocs.io"
+Repository = "https://github.com/YOUR_USERNAME/radiomicviz"
+Issues = "https://github.com/YOUR_USERNAME/radiomicviz/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+radiomicviz = ["presets/*.yaml"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
