@@ -13,7 +13,6 @@ dependencies:
   - click
   - pytest
   - pytest-cov
-  - conda-forge::pyradiomics
   - conda-forge::simpleitk=2.2.1
   - pre-commit
   - flake8
