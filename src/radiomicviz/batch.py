@@ -52,6 +52,7 @@ def batch_extract(
     output_dir: Optional[Union[str, Path]] = None,
     skip_validation: bool = False,
     continue_on_error: bool = True,
+    save_maps: bool = False,
 ) -> dict[str, ExtractionResult]:
     """
     Extract radiomics features from a cohort of subjects.
@@ -193,7 +194,7 @@ def batch_extract(
     if output_dir:
         _save_batch_outputs(
             results, failures, output_dir, per_subject_dir,
-            subjects_csv, total_time, save_maps=(mode == "voxelwise"),
+            subjects_csv, total_time, save_maps=save_maps
         )
 
     # -- Summary -----------------------------------------------------------
