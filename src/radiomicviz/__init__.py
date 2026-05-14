@@ -14,6 +14,7 @@ from radiomicviz.batch import batch_extract
 from radiomicviz.validate import validate_inputs
 from radiomicviz.result import ExtractionResult
 from radiomicviz.cohort import generate_cohort_csv
+from radiomicviz.viewer import launch_viewer
 
 __all__ = [
     "__version__",
@@ -23,5 +24,6 @@ __all__ = [
     "show_preset",
     "list_presets",
     "ExtractionResult",
-    "generate_cohort_csv"
+    "generate_cohort_csv",
+    "launch_viewer",
 ]

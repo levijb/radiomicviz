@@ -38,13 +38,7 @@ dependencies = [
 
 [project.optional-dependencies]
 viewer = [
-    "panel>=1.0",
-    "holoviews>=1.15",
-    "bokeh>=3.0",
-    "nilearn>=0.10",
-    "vtk>=9.0",
-    "pyvista>=0.38",
-    "matplotlib>=3.5",
+    "flask>=2.3",
 ]
 analysis = [
     "scikit-learn>=1.2",
@@ -75,7 +69,7 @@ Issues = "https://github.com/YOUR_USERNAME/radiomicviz/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-radiomicviz = ["presets/*.yaml"]
+radiomicviz = ["presets/*.yaml", "viewer/templates/*.html"]
 
 [tool.ruff]
 line-length = 100

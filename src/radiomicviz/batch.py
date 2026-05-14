@@ -52,7 +52,6 @@ def batch_extract(
     output_dir: Optional[Union[str, Path]] = None,
     skip_validation: bool = False,
     continue_on_error: bool = True,
-    save_maps: bool = False,
 ) -> dict[str, ExtractionResult]:
     """
     Extract radiomics features from a cohort of subjects.
@@ -155,10 +154,7 @@ def batch_extract(
     # -- Execute -----------------------------------------------------------
     t0 = time.time()
 
-    retain_mask = save_maps and mode == "voxelwise"
-
     if n_jobs == 1:
-        # Sequential — simpler debugging, no joblib overhead
         raw_results = []
         for job in jobs:
             raw_results.append(
@@ -167,7 +163,6 @@ def batch_extract(
                     mode=mode, modality=modality,
                     skip_validation=skip_validation,
                     continue_on_error=continue_on_error,
-                    retain_mask=retain_mask,
                 )
             )
     else:
@@ -178,7 +173,6 @@ def batch_extract(
                 mode=mode, modality=modality,
                 skip_validation=skip_validation,
                 continue_on_error=continue_on_error,
-                retain_mask=retain_mask,
             )
             for job in jobs
         )
@@ -199,7 +193,7 @@ def batch_extract(
     if output_dir:
         _save_batch_outputs(
             results, failures, output_dir, per_subject_dir,
-            subjects_csv, total_time, save_maps=save_maps,
+            subjects_csv, total_time, save_maps=(mode == "voxelwise"),
         )
 
     # -- Summary -----------------------------------------------------------
@@ -222,12 +216,10 @@ def _resolve_id_col(df: pd.DataFrame, user_col: Optional[str]) -> str:
     if user_col and user_col in df.columns:
         return user_col
 
-    # Auto-detect common names
     for candidate in ["subject_id", "Subject", "Patient", "participant_id", "ID", "id"]:
         if candidate in df.columns:
             return candidate
 
-    # Fall back to row index
     df["_row_index"] = [f"sub_{i:04d}" for i in range(len(df))]
     return "_row_index"
 
@@ -242,7 +234,6 @@ def _extract_one(
     modality: Optional[str],
     skip_validation: bool,
     continue_on_error: bool,
-    retain_mask: bool = False,
 ) -> tuple[str, Union[ExtractionResult, str]]:
     """Extract one subject. Returns (subject_id, result_or_error_string)."""
     sub_id = job["subject_id"]
@@ -259,7 +250,7 @@ def _extract_one(
             modality=modality,
             subject_id=sub_id,
             skip_validation=skip_validation,
-            retain_mask=retain_mask,
+            retain_mask=(mode == "voxelwise"),  # needed for 4D NIfTI export
         )
         return (sub_id, result)
 
@@ -296,11 +287,10 @@ def _save_batch_outputs(
             for _, row in result.features.iterrows():
                 row_dict = row.to_dict()
                 row_dict["subject_id"] = sub_id
-                row_dict["label"] = row.name  # the index (label)
+                row_dict["label"] = row.name
                 combined_rows.append(row_dict)
 
         combined_df = pd.DataFrame(combined_rows)
-        # Move subject_id and label to front
         cols = ["subject_id", "label"] + [
             c for c in combined_df.columns if c not in ("subject_id", "label")
         ]

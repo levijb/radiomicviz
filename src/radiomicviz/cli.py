@@ -63,45 +63,47 @@ def generate_csv(study_folder, output_csv_name):
               help="Custom PyRadiomics YAML config")
 @click.option("-o", "--output", default="features.csv",
               help="Output CSV path (default: features.csv)")
+@click.option("--output-4d", default=None, type=click.Path(),
+              help="Output path for 4D NIfTI of voxelwise feature maps (voxelwise mode only)")
 @click.option("--mode", type=click.Choice(["roi", "voxelwise"]), default="roi",
               help="Extraction mode")
-@click.option("--output-4d", default=None, type=click.Path(),
-              help="Save voxelwise feature maps as a 4D NIfTI (requires --mode voxelwise)")
+@click.option("--voxelwise-kernel", type=int, default=1,
+              help="Kernel radius for voxelwise extraction (default: 1)")
 @click.option("-l", "--label", type=int, default=None,
               help="Specific mask label to extract")
 @click.option("--modality", default=None, help="Modality label (e.g. T1, FLAIR)")
 @click.option("--subject-id", default=None, help="Subject identifier for metadata")
 @click.option("--skip-validation", is_flag=True, help="Skip input validation")
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output")
-def extract(image, mask, preset, config, output, mode, output_4d, label, modality,
-            subject_id, skip_validation, verbose):
+def extract(image, mask, preset, config, output, output_4d, mode, voxelwise_kernel,
+            label, modality, subject_id, skip_validation, verbose):
     """Extract radiomic features from a single image-mask pair."""
     _setup_logging(verbose)
 
     from radiomicviz import extract as _extract
+
+    retain_mask = (mode == "voxelwise")
 
     try:
         result = _extract(
             image=image, mask=mask, preset=preset, config=config,
             mode=mode, label=label, modality=modality,
             subject_id=subject_id, skip_validation=skip_validation,
+            retain_mask=retain_mask, voxelwise_kernel=voxelwise_kernel,
         )
         result.to_csv(output)
         click.echo(result.summary())
         click.echo(f"\nFeatures saved to {output}")
 
-        if output_4d:
-            if mode != "voxelwise":
-                click.secho("Warning: --output-4d ignored (requires --mode voxelwise)",
-                            fg="yellow", err=True)
-            else:
-                result.to_4d_nifti(output_4d)
-                click.echo(f"4D feature maps saved to {output_4d}")
+        if mode == "voxelwise":
+            nifti_path = output_4d or str(output).replace(".csv", "_features4d.nii.gz")
+            result.to_4d_nifti(nifti_path)
+            click.echo(f"4D feature maps saved to {nifti_path}")
+
     except Exception as exc:
         click.secho(f"Error: {exc}", fg="red", err=True)
         raise SystemExit(1)
-
-
+    
 # -------------------------------------------------------------------------
 # batch-extract
 # -------------------------------------------------------------------------
@@ -270,6 +272,44 @@ def generate_slurm(subjects, image_col, mask_col, preset, config, output_dir,
     for p in paths:
         click.echo(f"  {p}")
     click.echo(f"\nSubmit with: sbatch {paths[0]}")
+
+
+# -------------------------------------------------------------------------
+# view
+# -------------------------------------------------------------------------
+@cli.command()
+@click.option("-i", "--image", required=True, type=click.Path(exists=True),
+              help="Path to background image NIfTI")
+@click.option("-m", "--mask", default=None, type=click.Path(exists=True),
+              help="Path to mask NIfTI")
+@click.option("--overlays", multiple=True, type=click.Path(exists=True),
+              help="Feature map NIfTI(s) to load as overlays (repeatable)")
+@click.option("--feature-4d", default=None, type=click.Path(exists=True),
+              help="4D NIfTI with stacked feature maps")
+@click.option("--port", type=int, default=0, help="Port (0 = auto)")
+@click.option("--no-browser", is_flag=True, help="Don't open browser automatically")
+@click.option("-v", "--verbose", is_flag=True)
+def view(image, mask, overlays, feature_4d, port, no_browser, verbose):
+    """Launch interactive browser viewer for NIfTI files."""
+    _setup_logging(verbose)
+
+    from radiomicviz.viewer import launch_viewer
+
+    try:
+        launch_viewer(
+            image=image,
+            mask=mask,
+            overlays=list(overlays),
+            feature_4d=feature_4d,
+            port=port,
+            open_browser=not no_browser,
+        )
+    except ImportError as exc:
+        click.secho(str(exc), fg="red", err=True)
+        raise SystemExit(1)
+    except Exception as exc:
+        click.secho(f"Error: {exc}", fg="red", err=True)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

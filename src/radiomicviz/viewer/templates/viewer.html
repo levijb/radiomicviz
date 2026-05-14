@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RadiomicViz Viewer</title>
+  <script src="https://unpkg.com/@niivue/niivue/dist/niivue.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #111318;
+      color: #dde1e7;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    #header {
+      flex-shrink: 0;
+      background: #1c2030;
+      border-bottom: 1px solid #2a2f45;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #header .logo { color: #7eb8f7; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }
+    #header .badge {
+      background: #2a3555;
+      color: #9ab4d8;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    #main { flex: 1; display: flex; overflow: hidden; }
+
+    /* ── Sidebar ──────────────────────────────────────────── */
+    #sidebar {
+      width: 210px;
+      flex-shrink: 0;
+      background: #1c2030;
+      border-right: 1px solid #2a2f45;
+      padding: 10px 10px 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .section { display: flex; flex-direction: column; gap: 6px; }
+    .section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #6a7491;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #2a2f45;
+    }
+    label { font-size: 12px; color: #b0b8cc; }
+
+    select {
+      width: 100%;
+      background: #13172a;
+      border: 1px solid #2a2f45;
+      color: #dde1e7;
+      padding: 5px 6px;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    select:focus { outline: 1px solid #7eb8f7; }
+
+    .row { display: flex; align-items: center; gap: 6px; }
+    .row label { flex: 0 0 54px; }
+    .row input[type=range] { flex: 1; accent-color: #7eb8f7; cursor: pointer; }
+    .val { font-size: 11px; color: #7a8299; min-width: 30px; text-align: right; }
+
+    button {
+      width: 100%;
+      background: #13172a;
+      border: 1px solid #2a2f45;
+      color: #dde1e7;
+      padding: 6px 8px;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.12s;
+      text-align: center;
+    }
+    button:hover { background: #1e2540; }
+    button.active { background: #1d4170; border-color: #7eb8f7; color: #c8dcf5; }
+
+    .btn-row { display: flex; gap: 6px; }
+    .btn-row button { flex: 1; }
+
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+    .toggle-row input[type=checkbox] { accent-color: #7eb8f7; cursor: pointer; width: 14px; height: 14px; }
+
+    /* ── Canvas ───────────────────────────────────────────── */
+    #canvas-wrap { flex: 1; position: relative; background: #0d0f17; }
+    canvas#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+    /* ── Status bar ───────────────────────────────────────── */
+    #status-bar {
+      flex-shrink: 0;
+      background: #1c2030;
+      border-top: 1px solid #2a2f45;
+      padding: 3px 12px;
+      font-family: monospace;
+      font-size: 11px;
+      color: #6a7491;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div class="logo">RadiomicViz</div>
+  {% if manifest.feature_4d %}
+  <span class="badge">4D feature maps</span>
+  {% elif manifest.overlays %}
+  <span class="badge">{{ manifest.overlays | length }} overlay{{ 's' if manifest.overlays | length != 1 }}</span>
+  {% endif %}
+  {% if manifest.mask %}
+  <span class="badge">mask</span>
+  {% endif %}
+</div>
+
+<div id="main">
+  <div id="sidebar">
+
+    <!-- View mode -->
+    <div class="section">
+      <div class="section-label">View Mode</div>
+      <div class="btn-row">
+        <button id="btn-multi" class="active" onclick="setViewMode('multi')">Multi</button>
+        <button id="btn-3d" onclick="setViewMode('3d')">3D</button>
+      </div>
+    </div>
+
+    {% if manifest.mask %}
+    <!-- Mask -->
+    <div class="section">
+      <div class="section-label">Mask</div>
+      <div class="toggle-row">
+        <label>Show mask</label>
+        <input type="checkbox" id="mask-visible" checked onchange="onMaskToggle()">
+      </div>
+      <div class="row">
+        <label>Opacity</label>
+        <input type="range" id="mask-opacity" min="0" max="1" step="0.05" value="0.3"
+               oninput="onMaskOpacity(this)">
+        <span class="val" id="mask-opacity-val">0.30</span>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if manifest.overlays %}
+    <!-- 3D overlays -->
+    <div class="section">
+      <div class="section-label">Feature Overlay</div>
+      <label>Select</label>
+      <select id="overlay-select" onchange="onOverlayChange(this)">
+        <option value="">— none —</option>
+        {% for ov in manifest.overlays %}
+        <option value="{{ ov }}">{{ ov | replace('.nii.gz','') | replace('.nii','') }}</option>
+        {% endfor %}
+      </select>
+      <label>Colormap</label>
+      <select id="colormap-select" onchange="onColormapChange(this)">
+        <option value="viridis">Viridis</option>
+        <option value="plasma">Plasma</option>
+        <option value="inferno">Inferno</option>
+        <option value="hot">Hot</option>
+        <option value="cool">Cool</option>
+        <option value="winter">Winter</option>
+        <option value="blue2red">Blue → Red</option>
+        <option value="red">Red</option>
+        <option value="green">Green</option>
+        <option value="gray">Gray</option>
+      </select>
+      <div class="row">
+        <label>Opacity</label>
+        <input type="range" id="overlay-opacity" min="0" max="1" step="0.05" value="0.7"
+               oninput="onOverlayOpacity(this)">
+        <span class="val" id="overlay-opacity-val">0.70</span>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if manifest.feature_4d %}
+    <!-- 4D feature maps -->
+    <div class="section">
+      <div class="section-label">4D Feature Maps</div>
+      <label>Feature</label>
+      <select id="feature4d-select" onchange="onFeature4DChange(this)">
+        {% if manifest.feature_4d_features %}
+          {% for name in manifest.feature_4d_features %}
+          <option value="{{ loop.index0 }}">{{ name }}</option>
+          {% endfor %}
+        {% else %}
+          {% for i in range(manifest.feature_4d_n_frames | default(1)) %}
+          <option value="{{ i }}">Frame {{ i }}</option>
+          {% endfor %}
+        {% endif %}
+      </select>
+      <label>Colormap</label>
+      <select id="colormap4d-select" onchange="onColormap4DChange(this)">
+        <option value="viridis">Viridis</option>
+        <option value="plasma">Plasma</option>
+        <option value="inferno">Inferno</option>
+        <option value="hot">Hot</option>
+        <option value="cool">Cool</option>
+        <option value="winter">Winter</option>
+        <option value="blue2red">Blue → Red</option>
+        <option value="gray">Gray</option>
+      </select>
+      <div class="row">
+        <label>Opacity</label>
+        <input type="range" id="map4d-opacity" min="0" max="1" step="0.05" value="0.7"
+               oninput="onMap4DOpacity(this)">
+        <span class="val" id="map4d-opacity-val">0.70</span>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Actions -->
+    <div class="section">
+      <div class="section-label">Actions</div>
+      <button onclick="nv.saveScene('radiomicviz_screenshot.png')">Save Screenshot</button>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <div id="canvas-wrap">
+    <canvas id="gl"></canvas>
+  </div>
+</div><!-- /main -->
+
+<div id="status-bar">Click on the image to see voxel coordinates and intensity values</div>
+
+<script>
+const MANIFEST = {{ manifest | tojson }};
+
+// State
+let currentOverlay    = null;
+let currentColormap   = "viridis";
+let currentOverlayOp  = 0.7;
+let maskVisible       = true;
+let maskOpacity       = 0.3;
+let map4dColormap     = "viridis";
+let map4dOpacity      = 0.7;
+let vol4dId           = null;   // Niivue volume ID for the 4D volume
+
+const nv = new niivue.Niivue({
+  backColor: [0.05, 0.06, 0.09, 1],
+  crosshairColor: [1, 0.35, 0.35, 0.85],
+  show3Dcrosshair: true,
+  onLocationChange: (msg) => {
+    const bar = document.getElementById("status-bar");
+    bar.textContent = msg.string || "";
+  },
+});
+
+// ── Volume list builder ──────────────────────────────────────
+function buildVolumeList() {
+  const vols = [
+    { url: `/data/${MANIFEST.image}`, colormap: "gray", opacity: 1.0 }
+  ];
+
+  if (MANIFEST.mask && maskVisible) {
+    vols.push({
+      url: `/data/${MANIFEST.mask}`,
+      colormap: "red",
+      opacity: maskOpacity,
+      cal_min: 0.5,
+      cal_max: 2.0,
+      colorbarVisible: false,
+    });
+  }
+
+  if (currentOverlay) {
+    vols.push({
+      url: `/data/${currentOverlay}`,
+      colormap: currentColormap,
+      opacity: currentOverlayOp,
+    });
+  }
+
+  if (MANIFEST.feature_4d) {
+    vols.push({
+      url: `/data/${MANIFEST.feature_4d}`,
+      colormap: map4dColormap,
+      opacity: map4dOpacity,
+    });
+  }
+
+  return vols;
+}
+
+async function reloadVolumes() {
+  const vols = buildVolumeList();
+  await nv.loadVolumes(vols);
+
+  // Track 4D volume by its position in the array
+  if (MANIFEST.feature_4d) {
+    const idx = vols.findIndex(v => v.url.endsWith(MANIFEST.feature_4d));
+    if (idx >= 0 && nv.volumes[idx]) {
+      vol4dId = nv.volumes[idx].id;
+    }
+  }
+}
+
+// ── Init ─────────────────────────────────────────────────────
+async function init() {
+  const canvas = document.getElementById("gl");
+  nv.attachToCanvas(canvas);
+  await reloadVolumes();
+  nv.setSliceType(nv.sliceTypeMultiplanar);
+}
+
+// ── View mode ─────────────────────────────────────────────────
+function setViewMode(mode) {
+  if (mode === "multi") {
+    nv.setSliceType(nv.sliceTypeMultiplanar);
+    document.getElementById("btn-multi").classList.add("active");
+    document.getElementById("btn-3d").classList.remove("active");
+  } else {
+    nv.setSliceType(nv.sliceTypeRender);
+    document.getElementById("btn-3d").classList.add("active");
+    document.getElementById("btn-multi").classList.remove("active");
+  }
+}
+
+// ── Mask controls ─────────────────────────────────────────────
+function onMaskToggle() {
+  maskVisible = document.getElementById("mask-visible").checked;
+  reloadVolumes();
+}
+function onMaskOpacity(el) {
+  maskOpacity = parseFloat(el.value);
+  document.getElementById("mask-opacity-val").textContent = maskOpacity.toFixed(2);
+  reloadVolumes();
+}
+
+// ── Overlay controls ──────────────────────────────────────────
+function onOverlayChange(el) {
+  currentOverlay = el.value || null;
+  reloadVolumes();
+}
+function onColormapChange(el) {
+  currentColormap = el.value;
+  reloadVolumes();
+}
+function onOverlayOpacity(el) {
+  currentOverlayOp = parseFloat(el.value);
+  document.getElementById("overlay-opacity-val").textContent = currentOverlayOp.toFixed(2);
+  reloadVolumes();
+}
+
+// ── 4D controls ───────────────────────────────────────────────
+function onFeature4DChange(el) {
+  const frameIdx = parseInt(el.value, 10);
+  if (vol4dId !== null) {
+    nv.setFrame4D(vol4dId, frameIdx);
+  }
+}
+function onColormap4DChange(el) {
+  map4dColormap = el.value;
+  reloadVolumes();
+}
+function onMap4DOpacity(el) {
+  map4dOpacity = parseFloat(el.value);
+  document.getElementById("map4d-opacity-val").textContent = map4dOpacity.toFixed(2);
+  reloadVolumes();
+}
+
+init();
+</script>
+</body>
+</html>

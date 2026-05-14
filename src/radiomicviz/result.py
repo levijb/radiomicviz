@@ -273,6 +273,17 @@ class ExtractionResult:
             f"n_rois={self.n_rois}, image={self.metadata.image_path})"
         )
 
+    def view(
+        self,
+        port: int = 0,
+        features: Optional[list[str]] = None,
+        open_browser: bool = True,
+    ) -> None:
+        """Launch interactive browser viewer for this result."""
+        from radiomicviz.viewer import launch_viewer_from_result
+        launch_viewer_from_result(self, port=port, features=features,
+                                  open_browser=open_browser)
+
     def summary(self) -> str:
         """Human-readable summary of extraction results."""
         lines = [
