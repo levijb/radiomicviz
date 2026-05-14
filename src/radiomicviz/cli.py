@@ -36,6 +36,19 @@ def cli():
     """RadiomicViz: Interactive radiomics extraction and visualization."""
     pass
 
+# -------------------------------------------------------------------------
+# generate-csv
+# -------------------------------------------------------------------------
+@cli.command("generate-csv")
+@click.option("--study-folder", required=True, type=click.Path(exists=True),
+              help="Path to the study folder containing a Subjects/ directory.")
+@click.option("--output-csv-name", required=True,
+              help="Name of the output CSV file (without .csv extension).")
+def generate_csv(study_folder, output_csv_name):
+    """Generate a RadiomicViz-compatible cohort CSV from a BIDS-like study folder."""
+    from radiomicviz.cohort import generate_cohort_csv
+    generate_cohort_csv(study_folder, output_csv_name)
+    
 
 # -------------------------------------------------------------------------
 # extract
