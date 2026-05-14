@@ -249,10 +249,18 @@ class ExtractionResult:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         feat_names = sorted(self.feature_maps.keys())
-        stack = np.stack([self.feature_maps[f] for f in feat_names], axis=-1)
+        stack = np.stack([self.feature_maps[f] for f in feat_names], axis=-1).astype(np.float32)
+
+        # Build a clean header: copy spatial info from mask but reset scaling
+        # fields so viewers don't misinterpret float feature values.
+        header = self.mask_nii.header.copy()
+        header.set_data_shape(stack.shape)
+        header.set_data_dtype(np.float32)
+        header["scl_slope"] = 1.0
+        header["scl_inter"] = 0.0
 
         nib.save(
-            nib.Nifti1Image(stack, self.mask_nii.affine, self.mask_nii.header),
+            nib.Nifti1Image(stack, self.mask_nii.affine, header),
             str(path),
         )
 

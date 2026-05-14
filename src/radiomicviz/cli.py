@@ -96,7 +96,19 @@ def extract(image, mask, preset, config, output, output_4d, mode, voxelwise_kern
         click.echo(f"\nFeatures saved to {output}")
 
         if mode == "voxelwise":
-            nifti_path = output_4d or str(output).replace(".csv", "_features4d.nii.gz")
+            if output_4d:
+                nifti_path = output_4d
+            else:
+                from radiomicviz.extract import _infer_modality, _infer_session, _mask_stem
+                modality = _infer_modality(image)
+                session = _infer_session(image)
+                mask_name = _mask_stem(mask)
+                sub = subject_id or Path(image).stem
+                parts = [sub]
+                if session:
+                    parts.append(session)
+                parts.extend([modality, mask_name])
+                nifti_path = str(Path(output).parent / ("_".join(parts) + "_features4d.nii.gz"))
             result.to_4d_nifti(nifti_path)
             click.echo(f"4D feature maps saved to {nifti_path}")
 
@@ -231,7 +243,6 @@ def show_preset_cmd(name):
 @click.option("--constraint", default=None,
               help="SLURM constraint (e.g. 'cpu8mem64a')")
 @click.option("--time", "time_limit", default="04:00:00", help="SLURM time limit")
-@click.option("--mem", default="16G", help="Memory per job")
 @click.option("--conda-env", default=None,
               help="Conda environment name to activate")
 @click.option("--conda-sh", default=None,
@@ -240,7 +251,7 @@ def show_preset_cmd(name):
               help="Where to write SLURM scripts")
 def generate_slurm(subjects, image_col, mask_col, preset, config, output_dir,
                    mode, label, label_col, subject_id_col, modality, n_jobs,
-                   strategy, chunks, partition, constraint, time_limit, mem,
+                   strategy, chunks, partition, constraint, time_limit,
                    conda_env, conda_sh, script_dir):
     """Generate SLURM submission scripts for cluster extraction."""
     from radiomicviz._slurm import generate_slurm_scripts
@@ -263,7 +274,6 @@ def generate_slurm(subjects, image_col, mask_col, preset, config, output_dir,
         partition=partition,
         constraint=constraint,
         time_limit=time_limit,
-        mem=mem,
         conda_env=conda_env,
         conda_sh=conda_sh,
         script_dir=script_dir,

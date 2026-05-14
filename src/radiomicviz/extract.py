@@ -38,6 +38,30 @@ logger = logging.getLogger("radiomicviz.extract")
 _DIAG_PREFIX = "diagnostics_"
 
 
+def _infer_modality(image_path: Union[str, Path]) -> str:
+    """Infer image modality by searching for 't1' or 'flair' in the path."""
+    path_str = str(image_path).lower()
+    if "flair" in path_str:
+        return "flair"
+    if "t1" in path_str:
+        return "t1"
+    return "unknown"
+
+
+def _infer_session(image_path: Union[str, Path]) -> Optional[str]:
+    """Extract BIDS session label from path (e.g. 'ses-01'), or None."""
+    match = re.search(r"ses-([A-Za-z0-9]+)", str(image_path))
+    return f"ses-{match.group(1)}" if match else None
+
+
+def _mask_stem(mask_path: Union[str, Path]) -> str:
+    """Get mask filename stem, stripping .nii.gz or .nii suffix."""
+    name = Path(mask_path).name
+    if name.endswith(".nii.gz"):
+        return name[:-7]
+    return Path(name).stem
+
+
 def extract(
     image: Union[str, Path],
     mask: Union[str, Path],
@@ -196,11 +220,13 @@ def extract(
             for key, val in result.items():
                 if key.startswith(_DIAG_PREFIX):
                     continue  # skip diagnostics from pyradiomics
-                # PyRadiomics returns SimpleITK images for voxelwise
+                # PyRadiomics returns SimpleITK images for voxelwise.
+                # GetArrayFromImage returns (z, y, x); transpose to (x, y, z)
+                # to match nibabel's axis ordering.
                 if mode == "voxelwise":
                     import SimpleITK as sitk
                     if isinstance(val, sitk.Image):
-                        feat_dict[key] = sitk.GetArrayFromImage(val)
+                        feat_dict[key] = sitk.GetArrayFromImage(val).T
                     else:
                         feat_dict[key] = val
                 else:
