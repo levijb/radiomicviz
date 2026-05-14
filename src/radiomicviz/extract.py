@@ -144,8 +144,12 @@ def extract(
     extractor = RadiomicsFeatureExtractor(resolved_config)
 
     if mode == "voxelwise":
-        extractor.settings["voxelBased"] = True
-        extractor.settings["kernelRadius"] = voxelwise_kernel
+        resolved_config["voxelSetting"] = {
+            "kernelRadius": voxelwise_kernel,
+            "maskedKernel": True,
+            "initValue": "nan",
+            "voxelBatch": 2500,
+        }
 
     # -- Determine labels to extract ---------------------------------------
     mask_nii = nib.load(str(mask))
