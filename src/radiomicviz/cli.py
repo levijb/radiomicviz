@@ -240,7 +240,7 @@ def show_preset_cmd(name):
 @click.option("--chunks", type=int, default=10,
               help="Number of chunks (only for --strategy chunked)")
 @click.option("--partition", default=None, help="SLURM partition")
-@click.option("--constraint", default=None,
+@click.option("--constraint", default="cpu2mem8a",
               help="SLURM constraint (e.g. 'cpu8mem64a')")
 @click.option("--time", "time_limit", default="04:00:00", help="SLURM time limit")
 @click.option("--conda-env", default=None,
