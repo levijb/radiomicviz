@@ -1,58 +1,17 @@
-# radiomicviz preset: mri-habitat
-# Optimized for habitat clustering workflows (GMM/K-means on radiomic features).
-# First-order features that feed well into unsupervised clustering, plus texture
-# for heterogeneity characterization. Uses binCount=32 and normalization.
-# Matches the extraction settings used in the precise-habitats pipeline.
-
-setting:
-  binCount: 32
-  geometryTolerance: 1e-4
-  label: 1
-  interpolator: 'sitkBSpline'
-  resampledPixelSpacing: null
-  normalize: true
-  normalizeScale: 100
-  voxelArrayShift: 300
-  preCrop: true
-  correctMask: true
-  additionalInfo: true
-  minimumROIDimensions: 2
 
 imageType:
   Original: {}
+ 
+setting:
+  binCount: 64
+  label: 1
+  correctMask: true
+  interpolator: 'sitkBSpline'
+  resampledPixelSpacing: null
 
-featureClass:
-  firstorder:
-    - 'Mean'
-    - 'Median'
-    - 'StandardDeviation'
-    - 'Skewness'
-    - 'Kurtosis'
-    - 'Energy'
-    - 'Entropy'
-    - 'Range'
-    - 'InterquartileRange'
-    - '10Percentile'
-    - '90Percentile'
-    - 'RobustMeanAbsoluteDeviation'
-  glcm:
-    - 'JointEnergy'
-    - 'JointEntropy'
-    - 'Contrast'
-    - 'Correlation'
-    - 'ClusterShade'
-    - 'ClusterProminence'
-    - 'Idm'
-    - 'Autocorrelation'
-  glrlm:
-    - 'ShortRunEmphasis'
-    - 'LongRunEmphasis'
-    - 'RunEntropy'
-    - 'RunLengthNonUniformity'
-    - 'GrayLevelNonUniformity'
-  glszm:
-    - 'SmallAreaEmphasis'
-    - 'LargeAreaEmphasis'
-    - 'ZoneEntropy'
-    - 'SizeZoneNonUniformity'
-    - 'GrayLevelNonUniformity'
+
+voxelSetting:
+  kernelRadius: 1
+  maskedKernel: true
+  initValue: nan
+  voxelBatch: 2500
