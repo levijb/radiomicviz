@@ -370,6 +370,7 @@ def _make_header(
     constraint_line = f'#SBATCH --constraint="{constraint}"\n' if constraint else ""
     array_line = f"#SBATCH --array=0-{array_size - 1}\n" if array_size else ""
     array_idx_suffix = "_%a" if array_size else ""
+    mem_line = f"#SBATCH --mem={mem}\n" if mem else ""
 
     return _SLURM_HEADER.format(
         job_name=job_name,
@@ -377,9 +378,9 @@ def _make_header(
         partition_line=partition_line,
         constraint_line=constraint_line,
         array_line=array_line,
+        mem_line=mem_line,
         array_idx_suffix=array_idx_suffix,
         time_limit=time_limit,
-        mem=mem,
     )
 
 
