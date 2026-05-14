@@ -13,14 +13,16 @@ dependencies:
   - click
   - pytest
   - pytest-cov
+  - conda-forge::pyradiomics
+  - conda-forge::simpleitk=2.2.1
   - pre-commit
   - flake8
   - black
   - isort
-pip:
-  - rich>=12.0
-  - ruff>=0.1
-  - mypy>=1.0
-  - sphinx>=6.0
-  - sphinx-rtd-theme>=1.2
-  - -e .  --no-deps
+  - pip:
+      - rich>=12.0
+      - ruff>=0.1
+      - mypy>=1.0
+      - sphinx>=6.0
+      - sphinx-rtd-theme>=1.2
+      - -e . --no-deps
