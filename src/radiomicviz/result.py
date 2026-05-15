@@ -85,7 +85,9 @@ class ExtractionResult:
     features: pd.DataFrame
     metadata: ExtractionMetadata
     diagnostics: list[ROIDiagnostic] = field(default_factory=list)
-    feature_maps: Optional[dict[str, np.ndarray]] = None
+    # Voxelwise: {label_key: {feature_name: sitk.Image}}, e.g. {"label1": {"original_firstorder_Mean": ...}}
+    # ROI: None
+    feature_maps: Optional[dict[str, Any]] = None
     mask_nii: Optional[nib.Nifti1Image] = None
 
     # -- Properties --------------------------------------------------------
@@ -227,7 +229,8 @@ class ExtractionResult:
         """
         Stack all feature maps into a single 4D NIfTI + sidecar JSON.
 
-        Only available for voxelwise results.
+        Only available for voxelwise results. feature_maps must be the nested
+        {label_key: {feat_name: sitk.Image}} structure produced by extract().
 
         Parameters
         ----------
@@ -245,14 +248,25 @@ class ExtractionResult:
         if self.mask_nii is None:
             raise ValueError("mask_nii required for NIfTI export.")
 
+        import SimpleITK as sitk
+
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        feat_names = sorted(self.feature_maps.keys())
-        stack = np.stack([self.feature_maps[f] for f in feat_names], axis=-1).astype(np.float32)
+        # Flatten {label_key: {feat: sitk.Image}} into a stable ordered list.
+        # sitk.GetArrayFromImage returns (z, y, x); transpose to (x, y, z) for nibabel.
+        ordered_names: list[str] = []
+        ordered_arrays: list[np.ndarray] = []
+        for label_key in sorted(self.feature_maps):
+            for feat_name in sorted(self.feature_maps[label_key]):
+                val = self.feature_maps[label_key][feat_name]
+                arr = sitk.GetArrayFromImage(val).T if isinstance(val, sitk.Image) else np.asarray(val)
+                ordered_names.append(f"{label_key}_{feat_name}")
+                ordered_arrays.append(arr)
 
-        # Build a clean header: copy spatial info from mask but reset scaling
-        # fields so viewers don't misinterpret float feature values.
+        stack = np.stack(ordered_arrays, axis=-1).astype(np.float32)
+
+        # Copy spatial info from mask; reset scaling so float values display correctly.
         header = self.mask_nii.header.copy()
         header.set_data_shape(stack.shape)
         header.set_data_dtype(np.float32)
@@ -264,12 +278,11 @@ class ExtractionResult:
             str(path),
         )
 
-        # Sidecar with feature ordering
         sidecar_path = path.with_suffix("").with_suffix(".features.json")
         with open(sidecar_path, "w") as f:
-            json.dump({"features": feat_names}, f, indent=2)
+            json.dump({"features": ordered_names}, f, indent=2)
 
-        logger.info("Saved 4D NIfTI (%d features) to %s", len(feat_names), path)
+        logger.info("Saved 4D NIfTI (%d features) to %s", len(ordered_names), path)
         return path
 
     # -- Display -----------------------------------------------------------

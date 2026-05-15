@@ -274,21 +274,32 @@ def _save_batch_outputs(
 ) -> None:
     """Save combined CSV, per-subject CSVs, and manifest."""
 
-    # Per-subject CSVs (and optional 4D NIfTI maps)
+    # Per-subject outputs
     for sub_id, result in results.items():
         safe_id = sub_id.replace("/", "_").replace(" ", "_")
         sub_dir = subjects_dir / safe_id
         sub_dir.mkdir(exist_ok=True)
-        mode = result.metadata.mode
-        features_stem = f"{safe_id}_voxelwise_features.csv" if mode == "voxelwise" else f"{safe_id}_roi_features.csv"
-        result.to_csv(sub_dir / features_stem, include_metadata=False)
-        if save_maps and result.feature_maps:
-            result.to_4d_nifti(sub_dir / f"{safe_id}_voxelwise_4d.nii.gz")
 
-    # Combined CSV
-    if results:
+        if result.metadata.mode == "voxelwise":
+            # Save one .nrrd per feature per label: sub_dir/label{N}/feature_name.nrrd
+            if result.feature_maps:
+                import SimpleITK as sitk
+                n_saved = 0
+                for label_key in sorted(result.feature_maps):
+                    label_dir = sub_dir / label_key
+                    label_dir.mkdir(exist_ok=True)
+                    for feat_name, img in sorted(result.feature_maps[label_key].items()):
+                        sitk.WriteImage(img, str(label_dir / f"{feat_name}.nrrd"))
+                        n_saved += 1
+                logger.info("Saved %d .nrrd maps for %s", n_saved, safe_id)
+        else:
+            result.to_csv(sub_dir / f"{safe_id}_roi_features.csv", include_metadata=False)
+
+    # Combined CSV — ROI mode only; voxelwise outputs .nrrd files per subject
+    roi_results = {sid: r for sid, r in results.items() if r.metadata.mode == "roi"}
+    if roi_results:
         combined_rows = []
-        for sub_id, result in results.items():
+        for sub_id, result in roi_results.items():
             for _, row in result.features.iterrows():
                 row_dict = row.to_dict()
                 row_dict["subject_id"] = sub_id

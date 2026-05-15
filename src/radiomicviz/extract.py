@@ -75,7 +75,6 @@ def extract(
     subject_id: Optional[str] = None,
     skip_validation: bool = False,
     retain_mask: bool = True,
-    voxelwise_kernel: int = 1,
 ) -> ExtractionResult:
     """
     Extract radiomic features from an image–mask pair.
@@ -97,7 +96,8 @@ def extract(
         Useful for quick tweaks (e.g. ``{"label": 2, "binWidth": 32}``).
     mode : str
         ``"roi"`` for one feature vector per ROI label, or
-        ``"voxelwise"`` for per-voxel feature maps.
+        ``"voxelwise"`` for per-voxel feature maps (returns sitk.Image per
+        feature, saved as .nrrd by batch_extract).
     label : int, optional
         Extract features only for this mask label. If None, extracts
         for all nonzero labels.
@@ -110,8 +110,6 @@ def extract(
         If True, skip input validation (faster, but you're on your own).
     retain_mask : bool
         If True, keep the mask NIfTI in the result for later NIfTI export.
-    voxelwise_kernel : int
-        Kernel radius for voxelwise extraction (only used if mode="voxelwise").
 
     Returns
     -------
@@ -164,16 +162,6 @@ def extract(
     import radiomics
     from radiomics.featureextractor import RadiomicsFeatureExtractor
 
-    # voxelSetting must be present BEFORE the extractor is constructed —
-    # PyRadiomics reads it at __init__ time to enable voxel-based mode.
-    if mode == "voxelwise":
-        resolved_config["voxelSetting"] = {
-            "kernelRadius": voxelwise_kernel,
-            "maskedKernel": True,
-            "initValue": "nan",
-            "voxelBatch": 2500,
-        }
-
     extractor = RadiomicsFeatureExtractor(resolved_config)
 
     # -- Determine labels to extract ---------------------------------------
@@ -214,24 +202,20 @@ def extract(
                 lbl, n_voxels, image.name,
             )
 
-            result = extractor.execute(str(image), str(mask), label=int(lbl))
+            if mode == "voxelwise":
+                result = extractor.execute(
+                    str(image), str(mask), voxelBased=True, label=int(lbl)
+                )
+            else:
+                result = extractor.execute(str(image), str(mask), label=int(lbl))
 
-            # Separate diagnostic keys from feature keys
-            feat_dict = {}
-            for key, val in result.items():
-                if key.startswith(_DIAG_PREFIX):
-                    continue  # skip diagnostics from pyradiomics
-                # PyRadiomics returns SimpleITK images for voxelwise.
-                # GetArrayFromImage returns (z, y, x); transpose to (x, y, z)
-                # to match nibabel's axis ordering.
-                if mode == "voxelwise":
-                    import SimpleITK as sitk
-                    if isinstance(val, sitk.Image):
-                        feat_dict[key] = sitk.GetArrayFromImage(val).T
-                    else:
-                        feat_dict[key] = val
-                else:
-                    feat_dict[key] = val
+            # Strip PyRadiomics diagnostic keys; keep everything else as-is.
+            # For voxelwise mode, feature values are sitk.Image objects.
+            feat_dict = {
+                key: val
+                for key, val in result.items()
+                if not key.startswith(_DIAG_PREFIX)
+            }
 
             all_features[lbl] = feat_dict
             diag.extraction_ok = True
@@ -306,22 +290,31 @@ def _build_roi_dataframe(
 
 def _build_voxelwise_result(
     all_features: dict[int, dict[str, Any]],
-) -> tuple[pd.DataFrame, dict[str, np.ndarray]]:
-    """Build summary DataFrame + feature map dict from voxelwise results."""
+) -> tuple[pd.DataFrame, dict[str, dict[str, Any]]]:
+    """Build summary DataFrame + nested feature map dict from voxelwise results.
+
+    Returns feature_maps as {label_key: {feature_name: sitk.Image}}, where
+    label_key is e.g. "label1". Summary stats are computed from each image
+    so the DataFrame still has per-label mean/std/median columns.
+    """
+    import SimpleITK as sitk
+
     if not all_features:
         return pd.DataFrame(), {}
 
-    # For voxelwise, we typically have one label; stack feature maps
-    # and compute summary stats
-    feature_maps = {}
+    feature_maps: dict[str, dict[str, Any]] = {}
     summary_rows = []
 
     for lbl, feats in all_features.items():
-        row = {"label": lbl}
+        label_key = f"label{lbl}"
+        label_maps: dict[str, Any] = {}
+        row: dict[str, Any] = {"label": lbl}
+
         for key, val in feats.items():
-            if isinstance(val, np.ndarray):
-                feature_maps[f"label{lbl}_{key}"] = val
-                finite = val[np.isfinite(val)]
+            if isinstance(val, sitk.Image):
+                label_maps[key] = val
+                arr = sitk.GetArrayFromImage(val).ravel()
+                finite = arr[np.isfinite(arr)]
                 if len(finite) > 0:
                     row[f"{key}_mean"] = float(np.mean(finite))
                     row[f"{key}_std"] = float(np.std(finite))
@@ -330,6 +323,8 @@ def _build_voxelwise_result(
                 if hasattr(val, "item"):
                     val = val.item()
                 row[key] = val
+
+        feature_maps[label_key] = label_maps
         summary_rows.append(row)
 
     df = pd.DataFrame(summary_rows).set_index("label")

@@ -67,15 +67,13 @@ def generate_csv(study_folder, output_csv_name):
               help="Output path for 4D NIfTI of voxelwise feature maps (voxelwise mode only)")
 @click.option("--mode", type=click.Choice(["roi", "voxelwise"]), default="roi",
               help="Extraction mode")
-@click.option("--voxelwise-kernel", type=int, default=1,
-              help="Kernel radius for voxelwise extraction (default: 1)")
 @click.option("-l", "--label", type=int, default=None,
               help="Specific mask label to extract")
 @click.option("--modality", default=None, help="Modality label (e.g. T1, FLAIR)")
 @click.option("--subject-id", default=None, help="Subject identifier for metadata")
 @click.option("--skip-validation", is_flag=True, help="Skip input validation")
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output")
-def extract(image, mask, preset, config, output, output_4d, mode, voxelwise_kernel,
+def extract(image, mask, preset, config, output, output_4d, mode,
             label, modality, subject_id, skip_validation, verbose):
     """Extract radiomic features from a single image-mask pair."""
     _setup_logging(verbose)
@@ -89,7 +87,7 @@ def extract(image, mask, preset, config, output, output_4d, mode, voxelwise_kern
             image=image, mask=mask, preset=preset, config=config,
             mode=mode, label=label, modality=modality,
             subject_id=subject_id, skip_validation=skip_validation,
-            retain_mask=retain_mask, voxelwise_kernel=voxelwise_kernel,
+            retain_mask=retain_mask,
         )
         result.to_csv(output)
         click.echo(result.summary())
