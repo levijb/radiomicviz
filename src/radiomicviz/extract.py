@@ -164,9 +164,8 @@ def extract(
     import radiomics
     from radiomics.featureextractor import RadiomicsFeatureExtractor
 
-    # Write resolved config to a temp YAML (PyRadiomics wants a file or dict)
-    extractor = RadiomicsFeatureExtractor(resolved_config)
-
+    # voxelSetting must be present BEFORE the extractor is constructed —
+    # PyRadiomics reads it at __init__ time to enable voxel-based mode.
     if mode == "voxelwise":
         resolved_config["voxelSetting"] = {
             "kernelRadius": voxelwise_kernel,
@@ -174,6 +173,8 @@ def extract(
             "initValue": "nan",
             "voxelBatch": 2500,
         }
+
+    extractor = RadiomicsFeatureExtractor(resolved_config)
 
     # -- Determine labels to extract ---------------------------------------
     mask_nii = nib.load(str(mask))

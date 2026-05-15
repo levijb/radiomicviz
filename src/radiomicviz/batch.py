@@ -279,7 +279,9 @@ def _save_batch_outputs(
         safe_id = sub_id.replace("/", "_").replace(" ", "_")
         sub_dir = subjects_dir / safe_id
         sub_dir.mkdir(exist_ok=True)
-        result.to_csv(sub_dir / f"{safe_id}_roi_features.csv", include_metadata=False)
+        mode = result.metadata.mode
+        features_stem = f"{safe_id}_voxelwise_features.csv" if mode == "voxelwise" else f"{safe_id}_roi_features.csv"
+        result.to_csv(sub_dir / features_stem, include_metadata=False)
         if save_maps and result.feature_maps:
             result.to_4d_nifti(sub_dir / f"{safe_id}_voxelwise_4d.nii.gz")
 
