@@ -4,7 +4,10 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(dir /s /b \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\VIEWER_SPEC.md\")"
+      "Bash(dir /s /b \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\VIEWER_SPEC.md\")",
+      "Bash(python *)",
+      "Bash(pip show *)",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe -c \"import radiomics; from radiomics.featureextractor import RadiomicsFeatureExtractor; import inspect; src = inspect.getsource\\(RadiomicsFeatureExtractor.execute\\); print\\(src[:5000]\\)\" 2>&1)"
     ]
   }
 }
