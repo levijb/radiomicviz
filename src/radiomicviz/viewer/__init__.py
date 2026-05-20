@@ -39,11 +39,12 @@ def launch_viewer(
     mask: Optional[str | Path] = None,
     overlays: Optional[list[str | Path]] = None,
     feature_4d: Optional[str | Path] = None,
+    overlay_dir: Optional[str | Path] = None,
     port: int = 0,
     open_browser: bool = True,
 ) -> None:
     """
-    Launch the browser viewer from NIfTI files on disk.
+    Launch the browser viewer from NIfTI or NRRD files on disk.
 
     Parameters
     ----------
@@ -52,10 +53,15 @@ def launch_viewer(
     mask : str or Path, optional
         Mask NIfTI (shown as semi-transparent red overlay).
     overlays : list of str or Path, optional
-        Feature map NIfTIs selectable via dropdown.
+        Feature map NIfTIs or NRRD files selectable via dropdown.
+        NRRD files are converted to NIfTI on-the-fly by the server.
     feature_4d : str or Path, optional
         4D NIfTI with stacked feature maps.  A sidecar
         ``<stem>.features.json`` is read if present for feature names.
+    overlay_dir : str or Path, optional
+        Directory to scan for overlay files.  All ``*.nrrd`` and
+        ``*.nii.gz`` files found are added to the overlay list.
+        Combined with any explicit ``overlays`` entries.
     port : int
         Port to bind (0 = pick a free port automatically).
     open_browser : bool
@@ -71,9 +77,14 @@ def launch_viewer(
     if mask:
         mask_name = _register(files, Path(mask).resolve())
 
+    # Combine explicit overlays with any files found in overlay_dir
+    all_overlays: list[Path] = [Path(ov).resolve() for ov in (overlays or [])]
+    if overlay_dir:
+        all_overlays.extend(_collect_overlay_dir(overlay_dir))
+
     overlay_names: list[str] = []
-    for ov in (overlays or []):
-        overlay_names.append(_register(files, Path(ov).resolve()))
+    for ov in all_overlays:
+        overlay_names.append(_register(files, ov))
 
     feat4d_name = None
     feat4d_features: list[str] = []
@@ -151,12 +162,35 @@ def launch_viewer_from_result(
 # ── File helpers ──────────────────────────────────────────────────────────────
 
 def _register(files: dict[str, str], path: Path, name: Optional[str] = None) -> str:
-    """Add *path* to the files registry, return the URL key used."""
-    key = name or path.name
+    """Add *path* to the files registry, return the URL key used.
+
+    .nrrd files are registered under a .nii.gz URL key so NiiVue (which
+    identifies format by URL extension) receives a recognisable extension.
+    The server converts the file on-the-fly when that URL is requested.
+    """
+    if name is None:
+        raw = path.name
+        name = raw[:-5] + ".nii.gz" if raw.endswith(".nrrd") else raw
+    key = name
     if key in files and files[key] != str(path):
-        key = f"{path.parent.name}_{path.name}"
+        # Disambiguate with parent directory name
+        key = f"{path.parent.name}__{name}"
     files[key] = str(path)
     return key
+
+
+def _collect_overlay_dir(directory: str | Path) -> list[Path]:
+    """Return sorted list of .nrrd and .nii.gz files found in *directory*."""
+    d = Path(directory)
+    if not d.is_dir():
+        raise NotADirectoryError(f"overlay_dir is not a directory: {d}")
+    files = sorted(
+        p for p in d.iterdir()
+        if p.is_file() and (p.suffix == ".nrrd" or p.name.endswith(".nii.gz"))
+    )
+    if not files:
+        logger.warning("overlay_dir %s contains no .nrrd or .nii.gz files", d)
+    return files
 
 
 def _scan_dir(directory: str) -> dict[str, str]:

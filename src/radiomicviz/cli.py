@@ -300,14 +300,17 @@ def generate_slurm(subjects, image_col, mask_col, preset, config, output_dir,
 @click.option("-m", "--mask", default=None, type=click.Path(exists=True),
               help="Path to mask NIfTI")
 @click.option("--overlays", multiple=True, type=click.Path(exists=True),
-              help="Feature map NIfTI(s) to load as overlays (repeatable)")
+              help="Feature map NIfTI or NRRD file(s) to load as overlays (repeatable)")
 @click.option("--feature-4d", default=None, type=click.Path(exists=True),
               help="4D NIfTI with stacked feature maps")
+@click.option("--overlay-dir", default=None, type=click.Path(exists=True, file_okay=False),
+              help="Directory of .nrrd / .nii.gz feature maps — all files are added as overlays. "
+                   "E.g. ./Left_whole_thalamus/")
 @click.option("--port", type=int, default=0, help="Port (0 = auto)")
 @click.option("--no-browser", is_flag=True, help="Don't open browser automatically")
 @click.option("-v", "--verbose", is_flag=True)
-def view(image, mask, overlays, feature_4d, port, no_browser, verbose):
-    """Launch interactive browser viewer for NIfTI files."""
+def view(image, mask, overlays, feature_4d, overlay_dir, port, no_browser, verbose):
+    """Launch interactive browser viewer for NIfTI / NRRD files."""
     _setup_logging(verbose)
 
     from radiomicviz.viewer import launch_viewer
@@ -318,6 +321,7 @@ def view(image, mask, overlays, feature_4d, port, no_browser, verbose):
             mask=mask,
             overlays=list(overlays),
             feature_4d=feature_4d,
+            overlay_dir=overlay_dir,
             port=port,
             open_browser=not no_browser,
         )
