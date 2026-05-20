@@ -669,9 +669,12 @@ function buildVolumeList() {
   return vols;
 }
 
-// ── robustStat helper ─────────────────────────────────────────
+// ── robustStat helper — reads flat keys only (no dot-paths) ───
 function robustStat(vol, ...keys) {
-  for (const k of keys) if (vol[k] !== undefined && vol[k] !== null && !isNaN(vol[k])) return vol[k];
+  for (const k of keys) {
+    const v = vol[k];
+    if (v !== undefined && v !== null && !isNaN(v)) return v;
+  }
   return 0;
 }
 
@@ -690,14 +693,37 @@ async function reloadVolumes() {
       bgAnalyzed = true;
       const bgVol = nv.volumes[0];
       if (bgVol && autoThreshBg) {
-        const rMin = robustStat(bgVol, "robust_min", "cal_min", "global_min");
-        if (rMin < -0.5) {
-          // z-scored image: background voxels are ~0 and appear mid-grey.
-          // Setting cal_min slightly above 0 makes them render black.
-          bgCalMin = 0.02;
+        // robust_min is the 2nd-percentile of ALL voxels. For a skull-stripped
+        // image with 90%+ background zeros, robust_min ≈ 0 regardless of
+        // z-scoring — so use global_min (true minimum) instead.
+        // In a z-scored brain image the most-negative brain voxel is ~-4 to -6,
+        // while global_min for a raw T1 is 0 or close to it.
+        // global_min = true minimum of the volume data (most negative voxel).
+        // cal_min    = what NiiVue chose as the display lower bound.
+        // hdr.cal_min = lower bound stored in the NIfTI header (if set).
+        const gMin   = robustStat(bgVol, "global_min");
+        const rMin   = robustStat(bgVol, "robust_min", "cal_min");
+        const hdrMin = (bgVol.hdr && bgVol.hdr.cal_min != null && !isNaN(bgVol.hdr.cal_min))
+                       ? Number(bgVol.hdr.cal_min) : 0;
+        const detectedMin = Math.min(gMin, rMin, hdrMin);
+
+        console.log("[AutoThresh] vol stats →",
+          "global_min:", bgVol.global_min,
+          "robust_min:", bgVol.robust_min,
+          "cal_min:",    bgVol.cal_min,
+          "hdr.cal_min:", bgVol.hdr?.cal_min,
+          "→ detectedMin:", detectedMin);
+
+        if (detectedMin < -0.5) {
+          // z-scored image: background voxels ≈ 0 land mid-range in the gray
+          // colormap. Push cal_min above 0 so anything ≤ 0.1 renders as black.
+          bgCalMin = 0.1;
+          console.log("[AutoThresh] z-scored image detected → setting cal_min =", bgCalMin);
           _reloading = false;
-          await reloadVolumes();  // one extra reload with threshold applied
+          await reloadVolumes();
           return;
+        } else {
+          console.log("[AutoThresh] not z-scored (detectedMin =", detectedMin, ") — no threshold applied");
         }
       }
     }
