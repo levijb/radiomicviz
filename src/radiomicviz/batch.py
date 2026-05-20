@@ -140,6 +140,14 @@ def batch_extract(
     id_col = _resolve_id_col(df, subject_id_col)
     logger.info("Using '%s' as subject ID column", id_col)
 
+    # Auto-detect roi_name column from common names if not explicitly provided
+    if roi_name_col is None:
+        for candidate in ["mask_name", "roi_name"]:
+            if candidate in df.columns:
+                roi_name_col = candidate
+                logger.info("Auto-detected roi_name_col='%s' from CSV columns", roi_name_col)
+                break
+
     # -- Prepare output directory ------------------------------------------
     if output_dir:
         output_dir = Path(output_dir)
@@ -158,7 +166,12 @@ def batch_extract(
         else:
             sub_roi_name = roi_name
 
+        # Unique key per CSV row so multiple ROIs per subject don't overwrite each other.
+        # Falls back to sub_id alone when there's no roi_name (one row per subject).
+        job_key = f"{sub_id}__{sub_roi_name}" if sub_roi_name else sub_id
+
         jobs.append({
+            "job_key": job_key,
             "subject_id": sub_id,
             "image": row[image_col],
             "mask": row[mask_col],
@@ -193,7 +206,6 @@ def batch_extract(
             for job in jobs
         )
 
-
     total_time = time.time() - t0
 
     # -- Collect results ---------------------------------------------------
@@ -201,10 +213,11 @@ def batch_extract(
     failures: list[dict[str, str]] = []
 
     for job, (sub_id, result_or_error) in zip(jobs, raw_results):
+        job_key = job["job_key"]
         if isinstance(result_or_error, ExtractionResult):
-            results[sub_id] = result_or_error
+            results[job_key] = result_or_error
         else:
-            failures.append({"subject_id": sub_id, "error": result_or_error})
+            failures.append({"subject_id": sub_id, "job_key": job_key, "error": result_or_error})
 
     # -- Save outputs ------------------------------------------------------
     if output_dir:
@@ -214,13 +227,14 @@ def batch_extract(
         )
 
     # -- Summary -----------------------------------------------------------
+    n_unique_subjects = len({r.metadata.subject_id for r in results.values()})
     logger.info(
-        "Batch complete: %d/%d succeeded, %d failed (%.1fs total)",
-        len(results), len(jobs), len(failures), total_time,
+        "Batch complete: %d/%d rows succeeded (%d unique subjects), %d failed (%.1fs total)",
+        len(results), len(jobs), n_unique_subjects, len(failures), total_time,
     )
     if failures:
         for f in failures:
-            logger.error("  FAILED %s: %s", f["subject_id"], f["error"])
+            logger.error("  FAILED %s [%s]: %s", f["subject_id"], f["job_key"], f["error"])
 
     return results
 
@@ -292,13 +306,15 @@ def _save_batch_outputs(
     """Save combined CSV, per-subject CSVs, and manifest."""
 
     # Per-subject outputs
-    for sub_id, result in results.items():
-        safe_id = sub_id.replace("/", "_").replace(" ", "_")
+    # results keys are job_keys (e.g. "sub001__AF_L"); use metadata for the directory name.
+    for job_key, result in results.items():
+        actual_sub_id = result.metadata.subject_id or job_key
+        safe_id = actual_sub_id.replace("/", "_").replace(" ", "_")
         sub_dir = subjects_dir / safe_id
         sub_dir.mkdir(exist_ok=True)
 
         if result.metadata.mode == "voxelwise":
-            # Save one .nrrd per feature per label: sub_dir/label{N}/feature_name.nrrd
+            # Save one .nrrd per feature: sub_dir/<roi_name>/feature_name.nrrd
             if result.feature_maps:
                 import SimpleITK as sitk
                 n_saved = 0
@@ -308,18 +324,19 @@ def _save_batch_outputs(
                     for feat_name, img in sorted(result.feature_maps[label_key].items()):
                         sitk.WriteImage(img, str(label_dir / f"{feat_name}.nrrd"))
                         n_saved += 1
-                logger.info("Saved %d .nrrd maps for %s", n_saved, safe_id)
+                logger.info("Saved %d .nrrd maps for %s", n_saved, job_key)
         else:
             result.to_csv(sub_dir / f"{safe_id}_roi_features.csv", include_metadata=False)
 
     # Combined CSV — ROI mode only; voxelwise outputs .nrrd files per subject
-    roi_results = {sid: r for sid, r in results.items() if r.metadata.mode == "roi"}
+    roi_results = {k: r for k, r in results.items() if r.metadata.mode == "roi"}
     if roi_results:
         combined_rows = []
-        for sub_id, result in roi_results.items():
+        for job_key, result in roi_results.items():
+            actual_sub_id = result.metadata.subject_id or job_key
             for _, row in result.features.iterrows():
                 row_dict = row.to_dict()
-                row_dict["subject_id"] = sub_id
+                row_dict["subject_id"] = actual_sub_id
                 row_dict["label"] = row.name
                 combined_rows.append(row_dict)
 
@@ -345,9 +362,9 @@ def _save_batch_outputs(
         "radiomicviz_version": __version__,
         "timestamp": datetime.now().isoformat(),
         "subjects_csv": str(subjects_csv),
-        "total_subjects": len(results) + len(failures),
-        "succeeded": len(results),
-        "failed": len(failures),
+        "total_rows": len(results) + len(failures),
+        "succeeded_rows": len(results),
+        "failed_rows": len(failures),
         "total_time_seconds": round(total_time, 2),
         "failed_subjects": failures,
     }
