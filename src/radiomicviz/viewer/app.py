@@ -117,4 +117,8 @@ def create_app(files: dict[str, str], manifest: dict) -> Flask:
     def volumes():
         return jsonify(app.config["MANIFEST"])
 
+    @app.route("/api/backgrounds")
+    def backgrounds():
+        return jsonify({"files": app.config["MANIFEST"].get("backgrounds", [])})
+
     return app

@@ -125,6 +125,15 @@ def launch_viewer(
         except Exception:
             feat4d_n_frames = len(feat4d_features) or 1
 
+    # Scan image directory for sibling NIfTI files (alternative backgrounds)
+    _image_dir = Path(image).resolve().parent
+    backgrounds: list[str] = [image_name]
+    for _p in sorted(_image_dir.iterdir()):
+        if _p.is_file() and (_p.name.endswith(".nii.gz") or _p.suffix == ".nii"):
+            _key = _register(files, _p)
+            if _key != image_name:
+                backgrounds.append(_key)
+
     manifest = {
         "image": image_name,
         "mask": mask_name,
@@ -133,6 +142,7 @@ def launch_viewer(
         "feature_4d": feat4d_name,
         "feature_4d_features": feat4d_features,
         "feature_4d_n_frames": feat4d_n_frames,
+        "backgrounds": backgrounds,  # sibling NIfTIs for background swap
     }
 
     _serve(files=files, manifest=manifest, port=port, open_browser=open_browser)
