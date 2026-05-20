@@ -661,6 +661,7 @@ function renderLayerCards() {
 // ── Volume list ───────────────────────────────────────────────
 function buildVolumeList() {
   const bgSpec = { url:`/data/${currentBgFile}`, colormap:"gray", opacity:1, colorbarVisible:false };
+  if (autoThreshBg) bgSpec.cal_min = bgCalMin;
   const vols = [bgSpec];
 
   if (MANIFEST.mask && maskVisible)
@@ -702,9 +703,6 @@ async function reloadVolumes() {
   try {
     const vols = buildVolumeList();
     await nv.loadVolumes(vols);
-
-    // ── Apply auto-threshold to background by direct volume mutation ──
-    applyBgCalMin();
 
     // ── Read robust stats for each active visible layer ──────────────
     const maskOff = MANIFEST.mask && maskVisible ? 1 : 0;
@@ -884,27 +882,14 @@ function onThresholdChange(val) {
   document.getElementById("thresh-val").textContent = val.toFixed(3);
   document.getElementById("thresh-input").value = val.toFixed(3);
   document.getElementById("thresh-slider").value = val;
-  if (nv.volumes && nv.volumes.length > 0) {
-    nv.volumes[0].cal_min = val;
-    try { nv.updateGLVolume(); } catch(e) { try { nv.drawScene(); } catch(e2) {} }
-    console.log("Set cal_min to", val, "on volume", nv.volumes[0].id);
-  }
-}
-
-function applyBgCalMin() {
-  if (!nv.volumes || !nv.volumes[0]) return;
-  const bgVol = nv.volumes[0];
-  const target = autoThreshBg ? bgCalMin : (bgVol.global_min ?? 0);
-  bgVol.cal_min = target;
-  console.log("[AutoThresh] cal_min =", target, "on", bgVol.id);
-  try { nv.updateGLVolume(); } catch(e) { try { nv.drawScene(); } catch(e2) {} }
+  reloadVolumes();
 }
 
 function onAutoThreshToggle() {
   autoThreshBg = document.getElementById("autothresh-cb").checked;
   const row = document.getElementById("thresh-row");
   if (row) row.style.display = autoThreshBg ? "" : "none";
-  applyBgCalMin();
+  reloadVolumes();
 }
 
 // ── Mask ──────────────────────────────────────────────────────
