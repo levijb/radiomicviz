@@ -23,7 +23,7 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-from flask import Flask, abort, jsonify, render_template, send_file
+from flask import Flask, abort, jsonify, render_template, request, send_file
 
 logger = logging.getLogger("radiomicviz.viewer")
 
@@ -33,6 +33,10 @@ _nrrd_cache: dict[str, str] = {}
 _nrrd_cache_lock = threading.Lock()
 _nrrd_tmpdir: Optional[str] = None
 _nrrd_tmpdir_lock = threading.Lock()
+
+# Threshold cache: (absolute path, threshold float) → processed nii.gz path
+_thresh_cache: dict[tuple, str] = {}
+_thresh_cache_lock = threading.Lock()
 
 
 def _ensure_nrrd_tmpdir() -> str:
@@ -66,6 +70,36 @@ def _nrrd_as_nifti(nrrd_path_str: str) -> str:
 
     with _nrrd_cache_lock:
         _nrrd_cache[nrrd_path_str] = str(out_path)
+
+    return str(out_path)
+
+
+def _apply_threshold(nifti_path: str, threshold: float) -> str:
+    """Return path to a NIfTI with voxels where |value| <= threshold zeroed out, cached."""
+    cache_key = (nifti_path, threshold)
+    with _thresh_cache_lock:
+        cached = _thresh_cache.get(cache_key)
+    if cached and Path(cached).exists():
+        return cached
+
+    import nibabel as nib  # core dep — always available
+    import numpy as np
+
+    img = nib.load(nifti_path)
+    arr = np.asarray(img.dataobj).copy().astype(np.float32)
+    arr[np.abs(arr) <= threshold] = 0
+
+    tmpdir = _ensure_nrrd_tmpdir()
+    stem = Path(nifti_path).name.replace(".nii.gz", "").replace(".nii", "")
+    out_name = f"thresh{threshold:.4f}_{stem}.nii.gz"
+    out_path = Path(tmpdir) / out_name
+
+    logger.debug("Thresholding %s at %.4f → %s", nifti_path, threshold, out_path)
+    new_img = nib.Nifti1Image(arr, img.affine, img.header)
+    nib.save(new_img, str(out_path))
+
+    with _thresh_cache_lock:
+        _thresh_cache[cache_key] = str(out_path)
 
     return str(out_path)
 
@@ -109,6 +143,15 @@ def create_app(files: dict[str, str], manifest: dict) -> Flask:
                 real_path = _nrrd_as_nifti(real_path)
             except Exception as exc:
                 logger.error("NRRD conversion failed for %s: %s", real_path, exc)
+                abort(500)
+
+        threshold_str = request.args.get("threshold")
+        if threshold_str is not None:
+            try:
+                threshold = float(threshold_str)
+                real_path = _apply_threshold(real_path, threshold)
+            except Exception as exc:
+                logger.error("Threshold failed for %s: %s", real_path, exc)
                 abort(500)
 
         return send_file(str(real_path), mimetype="application/octet-stream")
