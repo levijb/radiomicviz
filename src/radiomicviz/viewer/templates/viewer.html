@@ -82,18 +82,6 @@
     .row input[type=range] { flex: 1 1 0; min-width: 0; width: 0; max-width: 100%; accent-color: #5a96d8; cursor: pointer; }
     .val { flex-shrink: 0; font-size: 10px; color: #4e5a78; width: 30px; text-align: right; font-family: monospace; }
 
-    /* threshold numeric input */
-    #thresh-input {
-      width: 52px; flex-shrink: 0;
-      background: #1a1f35; border: 1px solid #2a3a5e; color: #c8d6e5;
-      padding: 2px 4px; font-size: 11px; border-radius: 3px;
-      font-family: monospace; text-align: right;
-      -moz-appearance: textfield;
-    }
-    #thresh-input:focus { outline: none; border-color: #4a6a9e; }
-    #thresh-input::-webkit-outer-spin-button,
-    #thresh-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-
     /* zoom row */
     .zoom-row { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
     .zoom-row label { flex: 0 0 36px; margin: 0; font-size: 11px; color: #7a86a4; }
@@ -207,18 +195,6 @@
                oninput="onZoomSlider(this)">
         <button class="zoom-btn" onclick="stepZoom(0.1)">+</button>
         <span class="val" id="zoom-val">1.0&times;</span>
-      </div>
-      <div class="toggle-row">
-        <label title="Push cal_min above 0 so background voxels render as black">Auto-threshold background</label>
-        <input type="checkbox" id="autothresh-cb" checked onchange="onAutoThreshToggle()">
-      </div>
-      <div class="row" id="thresh-row">
-        <label>Thresh</label>
-        <input type="range" id="thresh-slider" min="0" max="1" step="0.001" value="0.05"
-               oninput="onThresholdChange(this.value)">
-        <input type="number" id="thresh-input" min="0" max="1" step="0.001" value="0.050"
-               onchange="onThresholdChange(this.value)">
-        <span id="thresh-val" style="display:none">0.050</span>
       </div>
     </div>
 
@@ -425,8 +401,6 @@ let map4dOpacity  = 0.7;
 let vol4dId       = null;
 
 let sidebarOpen   = true;
-let autoThreshBg  = true;
-let bgCalMin      = 0.05;
 let currentBgFile = MANIFEST.image;
 let zoomLevel     = 1.0;
 
@@ -671,8 +645,7 @@ function renderLayerCards() {
 
 // ── Volume list ───────────────────────────────────────────────
 function buildVolumeList() {
-  const threshParam = autoThreshBg ? `?threshold=${bgCalMin.toFixed(4)}` : "";
-  const bgSpec = { url:`/data/${currentBgFile}${threshParam}`, colormap:"gray", opacity:1, colorbarVisible:false };
+  const bgSpec = { url:`/data/${currentBgFile}`, colormap:"gray", opacity:1, colorbarVisible:false };
   const vols = [bgSpec];
 
   if (MANIFEST.mask && maskVisible)
@@ -874,23 +847,6 @@ function applyZoom() {
 }
 function onZoomSlider(el) { zoomLevel = parseFloat(el.value); applyZoom(); }
 function stepZoom(d) { zoomLevel = Math.max(0.3, Math.min(5, +(zoomLevel + d).toFixed(2))); applyZoom(); }
-
-// ── Auto-threshold background ─────────────────────────────────
-function onThresholdChange(val) {
-  val = parseFloat(val);
-  bgCalMin = val;
-  document.getElementById("thresh-val").textContent = val.toFixed(3);
-  document.getElementById("thresh-input").value = val.toFixed(3);
-  document.getElementById("thresh-slider").value = val;
-  reloadVolumes();
-}
-
-function onAutoThreshToggle() {
-  autoThreshBg = document.getElementById("autothresh-cb").checked;
-  const row = document.getElementById("thresh-row");
-  if (row) row.style.display = autoThreshBg ? "" : "none";
-  reloadVolumes();
-}
 
 // ── Mask ──────────────────────────────────────────────────────
 function onMaskToggle()    { maskVisible = document.getElementById("mask-visible").checked; reloadVolumes(); }
