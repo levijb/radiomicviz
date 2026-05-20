@@ -9,7 +9,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; }
     body {
-      background: #111318;
+      background: #0d0f18;
       color: #dde1e7;
       font-family: system-ui, -apple-system, sans-serif;
       font-size: 13px;
@@ -17,137 +17,197 @@
       flex-direction: column;
     }
 
-    /* ── Header ───────────────────────────────────────────── */
+    /* ── Header ── */
     #header {
       flex-shrink: 0;
-      background: #1c2030;
-      border-bottom: 1px solid #2a2f45;
-      padding: 8px 14px;
+      background: #0c0e1c;
+      border-bottom: 1px solid #1e2848;
+      padding: 7px 14px;
       display: flex;
       align-items: center;
       gap: 10px;
+      z-index: 20;
     }
-    #header .logo { color: #7eb8f7; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }
-    #header .badge {
-      background: #2a3555;
-      color: #9ab4d8;
-      font-size: 10px;
-      padding: 2px 7px;
-      border-radius: 10px;
-      letter-spacing: 0.5px;
+    .logo { color: #7eb8f7; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
+    .badge {
+      background: #18254a; color: #7eb0d8; font-size: 10px;
+      padding: 2px 8px; border-radius: 10px; letter-spacing: 0.4px;
+      white-space: nowrap; border: 1px solid #2a3a5e;
     }
 
-    /* ── Layout ───────────────────────────────────────────── */
-    #main { flex: 1; display: flex; overflow: hidden; }
+    /* ── Main ── */
+    #main { flex: 1; display: flex; overflow: hidden; min-height: 0; }
 
-    /* ── Sidebar ──────────────────────────────────────────── */
+    /* ── Sidebar ── */
     #sidebar {
-      width: 210px;
+      width: 248px; min-width: 248px; max-width: 248px;
       flex-shrink: 0;
-      background: #1c2030;
-      border-right: 1px solid #2a2f45;
-      padding: 10px 10px 14px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
+      background: #0f1221;
+      border-right: 1px solid #252e4a;
+      box-shadow: 2px 0 18px rgba(0,0,0,0.65);
+      padding: 12px 12px 20px;
+      overflow-y: auto; overflow-x: hidden;
+      display: flex; flex-direction: column; gap: 14px;
+      position: relative; z-index: 10; isolation: isolate;
+      transition: width .22s ease, min-width .22s ease, padding .22s ease, opacity .15s ease;
     }
-    .section { display: flex; flex-direction: column; gap: 6px; }
+    #sidebar.collapsed {
+      width: 0 !important; min-width: 0 !important;
+      padding-left: 0; padding-right: 0;
+      overflow: hidden; opacity: 0;
+    }
+    #sidebar > * { min-width: 0; width: 100%; }
+
+    .section { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
     .section-label {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #6a7491;
-      padding-bottom: 4px;
-      border-bottom: 1px solid #2a2f45;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1.2px; color: #606e90;
+      padding-bottom: 6px; border-bottom: 1px solid #1e2848;
     }
-    label { font-size: 12px; color: #b0b8cc; }
+
+    label { font-size: 11px; color: #8a96b4; display: block; min-width: 0; }
 
     select {
-      width: 100%;
-      background: #13172a;
-      border: 1px solid #2a2f45;
-      color: #dde1e7;
-      padding: 5px 6px;
-      font-size: 12px;
-      border-radius: 4px;
-      cursor: pointer;
+      width: 100%; min-width: 0;
+      background: #080a16; border: 1px solid #252e4a; color: #c8cedf;
+      padding: 5px 7px; font-size: 12px; border-radius: 4px; cursor: pointer;
+      text-overflow: ellipsis; overflow: hidden;
     }
-    select:focus { outline: 1px solid #7eb8f7; }
+    select:focus { outline: 1px solid #5a96d8; outline-offset: 1px; }
+    select:hover { border-color: #3a4a6a; }
 
-    .row { display: flex; align-items: center; gap: 6px; }
-    .row label { flex: 0 0 54px; }
-    .row input[type=range] { flex: 1; accent-color: #7eb8f7; cursor: pointer; }
-    .val { font-size: 11px; color: #7a8299; min-width: 30px; text-align: right; }
+    /* slider rows */
+    .row { display: flex; align-items: center; gap: 5px; min-width: 0; width: 100%; overflow: hidden; }
+    .row label { flex: 0 0 40px; margin: 0; font-size: 11px; color: #7a86a4; }
+    .row input[type=range] { flex: 1 1 0; min-width: 0; width: 0; max-width: 100%; accent-color: #5a96d8; cursor: pointer; }
+    .val { flex-shrink: 0; font-size: 10px; color: #4e5a78; width: 30px; text-align: right; font-family: monospace; }
 
+    /* zoom row */
+    .zoom-row { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+    .zoom-row label { flex: 0 0 36px; margin: 0; font-size: 11px; color: #7a86a4; }
+    .zoom-btn { flex: 0 0 20px; width: 20px; height: 20px; padding: 0; font-size: 14px; line-height: 1; }
+    .zoom-row input[type=range] { flex: 1 1 0; min-width: 0; width: 0; accent-color: #5a96d8; cursor: pointer; }
+    .zoom-row .val { width: 28px; }
+
+    /* buttons */
     button {
-      width: 100%;
-      background: #13172a;
-      border: 1px solid #2a2f45;
-      color: #dde1e7;
-      padding: 6px 8px;
-      font-size: 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: background 0.12s;
-      text-align: center;
+      width: 100%; background: #0a0d1a; border: 1px solid #252e4a; color: #b8c4da;
+      padding: 6px 8px; font-size: 12px; border-radius: 4px; cursor: pointer;
+      transition: background .12s, border-color .12s; text-align: center;
     }
-    button:hover { background: #1e2540; }
-    button.active { background: #1d4170; border-color: #7eb8f7; color: #c8dcf5; }
+    button:hover { background: #182040; border-color: #3a4a6a; }
+    button.active { background: #12285a; border-color: #4080c0; color: #a8ccf0; }
 
-    .btn-row { display: flex; gap: 6px; }
-    .btn-row button { flex: 1; }
+    .btn-row { display: flex; gap: 6px; min-width: 0; }
+    .btn-row button { flex: 1; min-width: 0; }
 
-    .toggle-row { display: flex; align-items: center; justify-content: space-between; }
-    .toggle-row input[type=checkbox] { accent-color: #7eb8f7; cursor: pointer; width: 14px; height: 14px; }
+    .icon-btn { width: auto; min-width: 0; padding: 2px 5px; font-size: 11px; flex-shrink: 0; }
+    .icon-btn.dim { opacity: 0.3; }
 
-    /* ── Canvas ───────────────────────────────────────────── */
-    #canvas-wrap { flex: 1; position: relative; background: #0d0f17; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; min-width: 0; }
+    .toggle-row label { margin: 0; }
+    .toggle-row input[type=checkbox] { accent-color: #5a96d8; cursor: pointer; width: 14px; height: 14px; flex-shrink: 0; }
+
+    /* add-overlay row: select fills remaining space, "+" button fixed */
+    .add-row { display: flex; gap: 5px; min-width: 0; }
+    .add-row select { flex: 1 1 0; min-width: 0; }
+    .add-row .add-btn { flex: 0 0 26px; min-width: 0; padding: 4px 0; font-size: 18px; line-height: 1; }
+
+    /* layer cards */
+    .layer-card {
+      background: #090c1a; border: 1px solid #1e2848; border-radius: 5px;
+      padding: 8px; display: flex; flex-direction: column; gap: 5px; min-width: 0;
+    }
+    .layer-header { display: flex; align-items: center; gap: 4px; min-width: 0; }
+    .layer-name {
+      flex: 1 1 0; min-width: 0;
+      font-size: 11px; color: #9ab0cc; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .layer-card select { font-size: 11px; padding: 3px 5px; }
+    .layer-card .row label { flex: 0 0 36px; font-size: 10px; }
+    .layer-card .val { width: 28px; font-size: 10px; }
+
+    /* colorbar */
+    .colorbar-block { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .colorbar-strip { height: 8px; border-radius: 3px; border: 1px solid #1e2540; background: linear-gradient(to right, #440154, #31688e, #35b779, #fde725); }
+    .colorbar-ticks { display: flex; justify-content: space-between; font-size: 10px; color: #4e5a7a; font-family: monospace; }
+    .colorbar-ticks span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ── Canvas + sidebar tab ── */
+    #canvas-wrap { flex: 1 1 0; position: relative; background: #0d0f18; min-width: 0; overflow: hidden; }
     canvas#gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
-    /* ── Status bar ───────────────────────────────────────── */
-    #status-bar {
-      flex-shrink: 0;
-      background: #1c2030;
-      border-top: 1px solid #2a2f45;
-      padding: 3px 12px;
-      font-family: monospace;
-      font-size: 11px;
-      color: #6a7491;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    #sidebar-tab {
+      position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+      width: 14px; height: 56px;
+      background: #131b30; border: 1px solid #252e4a; border-left: none;
+      border-radius: 0 5px 5px 0;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; z-index: 20;
+      color: #506080; font-size: 11px; line-height: 1; user-select: none;
+      transition: background .15s, color .15s;
     }
+    #sidebar-tab:hover { background: #1e2a48; color: #8ab4dc; }
+
+    /* ── Status bar ── */
+    #status-bar {
+      flex-shrink: 0; background: #0c0e1c; border-top: 1px solid #1e2848;
+      padding: 4px 14px; display: flex; align-items: center; gap: 12px;
+      font-family: monospace; font-size: 11px; color: #4e5e7a;
+      white-space: nowrap; overflow: hidden; min-height: 26px;
+    }
+    .sb-item { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
+    .sb-label { color: #505e80; font-weight: 600; }
+    .sb-value { color: #8ab4dc; }
+    .sb-sep { color: #2a3448; flex-shrink: 0; }
+    #sb-regions { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #7a9ab8; }
   </style>
 </head>
 <body>
 
 <div id="header">
   <div class="logo">RadiomicViz</div>
-  {% if manifest.feature_4d %}
-  <span class="badge">4D feature maps</span>
-  {% elif manifest.overlays %}
-  <span class="badge">{{ manifest.overlays | length }} overlay{{ 's' if manifest.overlays | length != 1 }}</span>
-  {% endif %}
-  {% if manifest.mask %}
-  <span class="badge">mask</span>
-  {% endif %}
+  {%- if manifest.feature_4d -%}
+    <span class="badge" id="count-badge">4D &middot; {{ manifest.feature_4d_n_frames }} frames</span>
+  {%- elif manifest.regions -%}
+    <span class="badge" id="count-badge">{{ manifest.regions | length }} region{{ 's' if manifest.regions | length != 1 }}</span>
+  {%- elif manifest.overlays -%}
+    <span class="badge" id="count-badge">{{ manifest.overlays | length }} overlay{{ 's' if manifest.overlays | length != 1 }}</span>
+  {%- endif -%}
+  {%- if manifest.mask %}<span class="badge">mask</span>{% endif %}
 </div>
 
 <div id="main">
   <div id="sidebar">
 
-    <!-- View mode -->
+    <!-- ── View Mode ── -->
     <div class="section">
       <div class="section-label">View Mode</div>
       <div class="btn-row">
         <button id="btn-multi" class="active" onclick="setViewMode('multi')">Multi</button>
-        <button id="btn-3d" onclick="setViewMode('3d')">3D</button>
+        <button id="btn-3d"    onclick="setViewMode('3d')">3D</button>
+      </div>
+      <div class="toggle-row">
+        <label>Crosshairs</label>
+        <input type="checkbox" id="crosshair-cb" checked onchange="onCrosshairToggle()">
+      </div>
+      <div class="zoom-row">
+        <label>Zoom</label>
+        <button class="zoom-btn" onclick="stepZoom(-0.1)">&#8722;</button>
+        <input type="range" id="zoom-slider" min="0.3" max="5" step="0.05" value="1"
+               oninput="onZoomSlider(this)">
+        <button class="zoom-btn" onclick="stepZoom(0.1)">+</button>
+        <span class="val" id="zoom-val">1.0&times;</span>
+      </div>
+      <div class="toggle-row">
+        <label title="When the image is z-scored, force background voxels to black">Auto-threshold bg</label>
+        <input type="checkbox" id="autothresh-cb" checked onchange="onAutoThreshToggle()">
       </div>
     </div>
 
     {% if manifest.mask %}
-    <!-- Mask -->
+    <!-- ── Mask ── -->
     <div class="section">
       <div class="section-label">Mask</div>
       <div class="toggle-row">
@@ -163,13 +223,56 @@
     </div>
     {% endif %}
 
-    {% if manifest.overlays %}
-    <!-- 3D overlays -->
+    {% if manifest.regions %}
+    <!-- ── Add Overlay (regions mode) ── -->
+    <div class="section">
+      <div class="section-label">Add Overlay</div>
+
+      {% if manifest.regions | length > 1 %}
+      <label>Region</label>
+      <select id="region-select" onchange="onRegionChange(this)">
+        {% for rname in manifest.regions %}
+        <option value="{{ rname }}">{{ rname | replace('_',' ') }}</option>
+        {% endfor %}
+      </select>
+      {% endif %}
+
+      <label>Feature</label>
+      <div class="add-row">
+        <select id="add-overlay-select">
+          <option value="">&#8212; none &#8212;</option>
+        </select>
+        <button class="add-btn" onclick="addCurrentLayer()" title="Add as overlay">+</button>
+      </div>
+
+      <label>Colormap</label>
+      <select id="add-colormap-select">
+        <option value="viridis">Viridis</option>
+        <option value="plasma">Plasma</option>
+        <option value="inferno">Inferno</option>
+        <option value="hot">Hot</option>
+        <option value="cool">Cool</option>
+        <option value="winter">Winter</option>
+        <option value="blue2red">Blue-Red</option>
+        <option value="red">Red</option>
+        <option value="green">Green</option>
+        <option value="gray">Gray</option>
+      </select>
+    </div>
+
+    <!-- ── Active Overlays ── -->
+    <div class="section" id="layers-section" style="display:none">
+      <div class="section-label">Active Overlays</div>
+      <div id="layers-container"></div>
+    </div>
+
+    {% elif manifest.overlays %}
+    <!-- ── Flat overlays (no regions) ── -->
     <div class="section">
       <div class="section-label">Feature Overlay</div>
-      <label>Select</label>
+      <label>Feature</label>
       <select id="overlay-select" onchange="onOverlayChange(this)">
-        <option value="">— none —</option>
+        <option value="">&#8212; none &#8212;</option>
         {% for ov in manifest.overlays %}
         <option value="{{ ov }}">{{ ov | replace('.nii.gz','') | replace('.nii','') }}</option>
         {% endfor %}
@@ -182,7 +285,7 @@
         <option value="hot">Hot</option>
         <option value="cool">Cool</option>
         <option value="winter">Winter</option>
-        <option value="blue2red">Blue → Red</option>
+        <option value="blue2red">Blue-Red</option>
         <option value="red">Red</option>
         <option value="green">Green</option>
         <option value="gray">Gray</option>
@@ -193,11 +296,17 @@
                oninput="onOverlayOpacity(this)">
         <span class="val" id="overlay-opacity-val">0.70</span>
       </div>
+      <div id="colorbar-block" class="colorbar-block" style="display:none">
+        <div class="colorbar-strip" id="colorbar-strip"></div>
+        <div class="colorbar-ticks">
+          <span id="cb-min">0.0000</span><span id="cb-max">1.0000</span>
+        </div>
+      </div>
     </div>
     {% endif %}
 
     {% if manifest.feature_4d %}
-    <!-- 4D feature maps -->
+    <!-- ── 4D ── -->
     <div class="section">
       <div class="section-label">4D Feature Maps</div>
       <label>Feature</label>
@@ -220,7 +329,7 @@
         <option value="hot">Hot</option>
         <option value="cool">Cool</option>
         <option value="winter">Winter</option>
-        <option value="blue2red">Blue → Red</option>
+        <option value="blue2red">Blue-Red</option>
         <option value="gray">Gray</option>
       </select>
       <div class="row">
@@ -232,7 +341,7 @@
     </div>
     {% endif %}
 
-    <!-- Actions -->
+    <!-- ── Actions ── -->
     <div class="section">
       <div class="section-label">Actions</div>
       <button onclick="nv.saveScene('radiomicviz_screenshot.png')">Save Screenshot</button>
@@ -241,90 +350,424 @@
   </div><!-- /sidebar -->
 
   <div id="canvas-wrap">
+    <!-- Sidebar collapse tab: lives on the canvas edge, vertically centered -->
+    <div id="sidebar-tab" onclick="toggleSidebar()" title="Toggle sidebar">&#8249;</div>
     <canvas id="gl"></canvas>
   </div>
-</div><!-- /main -->
+</div>
 
-<div id="status-bar">Click on the image to see voxel coordinates and intensity values</div>
+<div id="status-bar">
+  <span class="sb-item"><span class="sb-label">vox</span>&nbsp;<span class="sb-value" id="sb-vox">&#8212;</span></span>
+  <span class="sb-item"><span class="sb-label">mm</span>&nbsp;<span class="sb-value"  id="sb-mm">&#8212;</span></span>
+  <span class="sb-sep">&#124;</span>
+  <span id="sb-regions">&#8212;</span>
+</div>
 
 <script>
 const MANIFEST = {{ manifest | tojson }};
 
-// State
-let currentOverlay    = null;
-let currentColormap   = "viridis";
-let currentOverlayOp  = 0.7;
-let maskVisible       = true;
-let maskOpacity       = 0.3;
-let map4dColormap     = "viridis";
-let map4dOpacity      = 0.7;
-let vol4dId           = null;   // Niivue volume ID for the 4D volume
+// ── Colormap gradient stops ───────────────────────────────────
+const CM_STOPS = {
+  viridis:  ["#440154","#3b528b","#21908c","#5dc963","#fde725"],
+  plasma:   ["#0d0887","#7e03a8","#cc4778","#f89540","#f0f921"],
+  inferno:  ["#000004","#420a68","#932667","#dd513a","#fcffa4"],
+  hot:      ["#000000","#ff2800","#ff9900","#ffff00","#ffffff"],
+  cool:     ["#00ffff","#ff00ff"],
+  winter:   ["#0000ff","#00ff80"],
+  blue2red: ["#0055ff","#88aaff","#ffffff","#ff8888","#ff0000"],
+  red:      ["#000000","#ff0000"],
+  green:    ["#000000","#00ff00"],
+  gray:     ["#000000","#ffffff"],
+};
+function cmGrad(cm) {
+  const s = CM_STOPS[cm] || CM_STOPS.viridis;
+  return s.map((c,i)=>`${c} ${((i/(s.length-1))*100).toFixed(0)}%`).join(",");
+}
 
+// ── Module state ─────────────────────────────────────────────
+const REGIONS      = MANIFEST.regions || {};
+const REGION_NAMES = Object.keys(REGIONS);
+let currentRegion  = REGION_NAMES.length ? REGION_NAMES[0] : null;
+
+// Multi-layer overlay state (regions mode)
+let activeLayers = [];  // {id,region,urlKey,colormap,opacity,visible,calMin,calMax,robustMin,robustMax}
+let layerIdCtr   = 0;
+
+// Flat overlay state (non-regions mode)
+let currentOverlay   = null;
+let currentColormap  = "viridis";
+let currentOverlayOp = 0.7;
+
+let maskVisible  = true;
+let maskOpacity  = 0.3;
+let map4dColormap = "viridis";
+let map4dOpacity  = 0.7;
+let vol4dId       = null;
+
+let sidebarOpen  = true;
+let autoThreshBg = true;
+let bgCalMin     = null;   // set after z-score detection
+let bgAnalyzed   = false;  // prevent re-triggering detection on every reload
+let zoomLevel    = 1.0;
+
+// ── NiiVue ───────────────────────────────────────────────────
 const nv = new niivue.Niivue({
-  backColor: [0.05, 0.06, 0.09, 1],
+  backColor: [0.051, 0.059, 0.094, 1],
   crosshairColor: [1, 0.35, 0.35, 0.85],
   show3Dcrosshair: true,
-  onLocationChange: (msg) => {
-    const bar = document.getElementById("status-bar");
-    bar.textContent = msg.string || "";
-  },
+  onLocationChange: onLocation,
 });
 
-// ── Volume list builder ──────────────────────────────────────
+// ── Status bar ───────────────────────────────────────────────
+function onLocation(msg) {
+  if (!msg) return;
+  if (msg.vox) document.getElementById("sb-vox").textContent = msg.vox.map(v=>Math.round(v)).join(", ");
+  if (msg.mm)  document.getElementById("sb-mm").textContent  = msg.mm.map(v=>v.toFixed(1)).join(", ");
+
+  const parts = [];
+  if (msg.values && msg.values.length) {
+    // Index 0 is always the background image; skip it.
+    // Count how many volumes precede the active layers.
+    const maskOff = MANIFEST.mask && maskVisible ? 1 : 0;
+    const base    = 1 + maskOff;
+    let   vi      = 0;
+    activeLayers.forEach(layer => {
+      if (!layer.visible || !layer.urlKey) return;
+      const entry = msg.values[base + vi];
+      vi++;
+      if (entry && typeof entry.value === "number") {
+        const feat = featureLabel(layer.urlKey, layer.region);
+        parts.push(`${layer.region.replace(/_/g," ")}: ${feat} = ${entry.value.toFixed(3)}`);
+      }
+    });
+    // Flat-overlay fallback
+    if (!activeLayers.length && msg.values.length > 1) {
+      const v = msg.values[1];
+      if (typeof v.value === "number") parts.push(`val = ${v.value.toFixed(5)}`);
+    }
+  }
+  document.getElementById("sb-regions").textContent = parts.length ? parts.join("  │  ") : "—";
+}
+
+// ── Feature label ─────────────────────────────────────────────
+function featureLabel(urlKey, regionName) {
+  let s = urlKey;
+  const pfx = regionName + "__";
+  if (s.startsWith(pfx)) s = s.slice(pfx.length);
+  return s.replace(/\.nii\.gz$/i,"").replace(/\.nii$/i,"");
+}
+
+// ── Region / add-dropdown ─────────────────────────────────────
+function populateAddDropdown(regionName) {
+  const sel = document.getElementById("add-overlay-select");
+  if (!sel) return;
+  const urls = REGIONS[regionName] || [];
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">&#8212; none &#8212;</option>';
+  urls.forEach(k => {
+    const o = document.createElement("option");
+    o.value = k; o.textContent = featureLabel(k, regionName);
+    sel.appendChild(o);
+  });
+  sel.value = (prev && urls.includes(prev)) ? prev : "";
+  const badge = document.getElementById("count-badge");
+  if (badge && REGION_NAMES.length) badge.textContent = `${urls.length} feature${urls.length!==1?"s":""}`;
+}
+
+function onRegionChange(el) {
+  currentRegion = el.value;
+  populateAddDropdown(currentRegion);
+}
+
+// ── Layer management ──────────────────────────────────────────
+function addCurrentLayer() {
+  const fsel = document.getElementById("add-overlay-select");
+  const csel = document.getElementById("add-colormap-select");
+  const urlKey = fsel ? fsel.value : "";
+  if (!urlKey) return;
+  activeLayers.push({
+    id: layerIdCtr++, region: currentRegion, urlKey,
+    colormap: csel ? csel.value : "viridis",
+    opacity: 0.7, visible: true,
+    calMin: null, calMax: null,
+    robustMin: null, robustMax: null,
+  });
+  renderLayerCards();
+  reloadVolumes();
+}
+
+function removeLayer(id) {
+  activeLayers = activeLayers.filter(l => l.id !== id);
+  renderLayerCards();
+  reloadVolumes();
+}
+
+function toggleLayerVis(id) {
+  const l = activeLayers.find(l => l.id === id);
+  if (!l) return;
+  l.visible = !l.visible;
+  const btn = document.querySelector(`#layer-card-${id} .vis-btn`);
+  if (btn) btn.classList.toggle("dim", !l.visible);
+  reloadVolumes();
+}
+
+function onLayerFeature(id, el) {
+  const l = activeLayers.find(l => l.id === id);
+  if (!l) return;
+  l.urlKey = el.value || null;
+  l.calMin = null; l.calMax = null; l.robustMin = null; l.robustMax = null;
+  reloadVolumes();
+}
+
+function onLayerColormap(id, el) {
+  const l = activeLayers.find(l => l.id === id);
+  if (!l) return;
+  l.colormap = el.value;
+  refreshLayerColorbar(l);
+  reloadVolumes();
+}
+
+function onLayerOpacity(id, el) {
+  const l = activeLayers.find(l => l.id === id);
+  if (!l) return;
+  l.opacity = parseFloat(el.value);
+  const sp = document.getElementById(`lop-val-${id}`);
+  if (sp) sp.textContent = l.opacity.toFixed(2);
+  reloadVolumes();
+}
+
+function onLayerCalMin(id, el) {
+  const l = activeLayers.find(l => l.id === id);
+  if (!l) return;
+  l.calMin = parseFloat(el.value);
+  const sp = document.getElementById(`lcmin-val-${id}`);
+  if (sp) sp.textContent = l.calMin.toFixed(2);
+  refreshLayerColorbar(l);
+  reloadVolumes();
+}
+
+function onLayerCalMax(id, el) {
+  const l = activeLayers.find(l => l.id === id);
+  if (!l) return;
+  l.calMax = parseFloat(el.value);
+  const sp = document.getElementById(`lcmax-val-${id}`);
+  if (sp) sp.textContent = l.calMax.toFixed(2);
+  refreshLayerColorbar(l);
+  reloadVolumes();
+}
+
+// ── Colorbar helpers ──────────────────────────────────────────
+function refreshLayerColorbar(layer) {
+  const strip = document.getElementById(`lcbstrip-${layer.id}`);
+  const block = document.getElementById(`lcb-${layer.id}`);
+  const cbMin = document.getElementById(`lcbmin-${layer.id}`);
+  const cbMax = document.getElementById(`lcbmax-${layer.id}`);
+  if (!strip || !block) return;
+  strip.style.background = `linear-gradient(to right,${cmGrad(layer.colormap)})`;
+  const lo = layer.calMin !== null ? layer.calMin : (layer.robustMin ?? 0);
+  const hi = layer.calMax !== null ? layer.calMax : (layer.robustMax ?? 1);
+  if (cbMin) cbMin.textContent = lo.toFixed(4);
+  if (cbMax) cbMax.textContent = hi.toFixed(4);
+  block.style.display = (layer.robustMin !== null) ? "flex" : "none";
+}
+
+// ── Layer card HTML ───────────────────────────────────────────
+function cmOptions(selected) {
+  return ["viridis","plasma","inferno","hot","cool","winter","blue2red","red","green","gray"]
+    .map(c=>`<option value="${c}"${c===selected?" selected":""}>${c[0].toUpperCase()+c.slice(1)}</option>`)
+    .join("");
+}
+
+function featOptions(region, selectedKey) {
+  const urls = REGIONS[region] || [];
+  return '<option value="">&#8212; none &#8212;</option>' +
+    urls.map(k=>`<option value="${k}"${k===selectedKey?" selected":""}>${featureLabel(k,region)}</option>`).join("");
+}
+
+function renderLayerCards() {
+  const container = document.getElementById("layers-container");
+  const section   = document.getElementById("layers-section");
+  if (!container || !section) return;
+  if (!activeLayers.length) { section.style.display = "none"; container.innerHTML = ""; return; }
+  section.style.display = "";
+  container.innerHTML = "";
+
+  activeLayers.forEach(layer => {
+    const rMin = layer.robustMin ?? 0;
+    const rMax = layer.robustMax ?? 1;
+    const cMin = layer.calMin   ?? rMin;
+    const cMax = layer.calMax   ?? rMax;
+    const range = rMax - rMin || 1;
+    const step  = parseFloat((range / 100).toPrecision(2)) || 0.01;
+
+    const card = document.createElement("div");
+    card.className = "layer-card";
+    card.id = `layer-card-${layer.id}`;
+    card.innerHTML = `
+      <div class="layer-header">
+        <span class="layer-name" title="${layer.region}">${layer.region.replace(/_/g," ")}</span>
+        <button class="icon-btn vis-btn${layer.visible?"":" dim"}"
+                onclick="toggleLayerVis(${layer.id})" title="Toggle visibility">&#9675;</button>
+        <button class="icon-btn" onclick="removeLayer(${layer.id})" title="Remove">&times;</button>
+      </div>
+      <select onchange="onLayerFeature(${layer.id},this)">${featOptions(layer.region,layer.urlKey)}</select>
+      <select onchange="onLayerColormap(${layer.id},this)">${cmOptions(layer.colormap)}</select>
+      <div class="row">
+        <label>Opacity</label>
+        <input type="range" min="0" max="1" step="0.05" value="${layer.opacity}"
+               oninput="onLayerOpacity(${layer.id},this)">
+        <span class="val" id="lop-val-${layer.id}">${layer.opacity.toFixed(2)}</span>
+      </div>
+      <div class="row">
+        <label>Min</label>
+        <input type="range" min="${rMin}" max="${rMax}" step="${step}" value="${cMin}"
+               oninput="onLayerCalMin(${layer.id},this)">
+        <span class="val" id="lcmin-val-${layer.id}">${cMin.toFixed(2)}</span>
+      </div>
+      <div class="row">
+        <label>Max</label>
+        <input type="range" min="${rMin}" max="${rMax}" step="${step}" value="${cMax}"
+               oninput="onLayerCalMax(${layer.id},this)">
+        <span class="val" id="lcmax-val-${layer.id}">${cMax.toFixed(2)}</span>
+      </div>
+      <div class="colorbar-block" id="lcb-${layer.id}" style="display:none">
+        <div class="colorbar-strip" id="lcbstrip-${layer.id}"></div>
+        <div class="colorbar-ticks">
+          <span id="lcbmin-${layer.id}">${cMin.toFixed(4)}</span>
+          <span id="lcbmax-${layer.id}">${cMax.toFixed(4)}</span>
+        </div>
+      </div>`;
+    container.appendChild(card);
+    refreshLayerColorbar(layer);
+  });
+}
+
+// ── Volume list ───────────────────────────────────────────────
 function buildVolumeList() {
-  const vols = [
-    { url: `/data/${MANIFEST.image}`, colormap: "gray", opacity: 1.0 }
-  ];
+  const bgSpec = { url:`/data/${MANIFEST.image}`, colormap:"gray", opacity:1, colorbarVisible:false };
+  if (autoThreshBg && bgCalMin !== null) bgSpec.cal_min = bgCalMin;
+  const vols = [bgSpec];
 
-  if (MANIFEST.mask && maskVisible) {
-    vols.push({
-      url: `/data/${MANIFEST.mask}`,
-      colormap: "red",
-      opacity: maskOpacity,
-      cal_min: 0.5,
-      cal_max: 2.0,
-      colorbarVisible: false,
-    });
-  }
+  if (MANIFEST.mask && maskVisible)
+    vols.push({ url:`/data/${MANIFEST.mask}`, colormap:"red", opacity:maskOpacity,
+                cal_min:0.5, cal_max:2, colorbarVisible:false });
 
-  if (currentOverlay) {
-    vols.push({
-      url: `/data/${currentOverlay}`,
-      colormap: currentColormap,
-      opacity: currentOverlayOp,
-    });
-  }
+  activeLayers.forEach(l => {
+    if (!l.visible || !l.urlKey) return;
+    const s = { url:`/data/${l.urlKey}`, colormap:l.colormap, opacity:l.opacity, colorbarVisible:false };
+    if (l.calMin !== null) s.cal_min = l.calMin;
+    if (l.calMax !== null) s.cal_max = l.calMax;
+    vols.push(s);
+  });
 
-  if (MANIFEST.feature_4d) {
-    vols.push({
-      url: `/data/${MANIFEST.feature_4d}`,
-      colormap: map4dColormap,
-      opacity: map4dOpacity,
-    });
-  }
+  if (currentOverlay)
+    vols.push({ url:`/data/${currentOverlay}`, colormap:currentColormap, opacity:currentOverlayOp, colorbarVisible:false });
+
+  if (MANIFEST.feature_4d)
+    vols.push({ url:`/data/${MANIFEST.feature_4d}`, colormap:map4dColormap, opacity:map4dOpacity, colorbarVisible:false });
 
   return vols;
 }
 
-async function reloadVolumes() {
-  const vols = buildVolumeList();
-  await nv.loadVolumes(vols);
+// ── robustStat helper ─────────────────────────────────────────
+function robustStat(vol, ...keys) {
+  for (const k of keys) if (vol[k] !== undefined && vol[k] !== null && !isNaN(vol[k])) return vol[k];
+  return 0;
+}
 
-  // Track 4D volume by its position in the array
-  if (MANIFEST.feature_4d) {
-    const idx = vols.findIndex(v => v.url.endsWith(MANIFEST.feature_4d));
-    if (idx >= 0 && nv.volumes[idx]) {
-      vol4dId = nv.volumes[idx].id;
+// ── Reload ───────────────────────────────────────────────────
+let _reloading = false;
+let _pendingReload = false;
+async function reloadVolumes() {
+  if (_reloading) { _pendingReload = true; return; }
+  _reloading = true; _pendingReload = false;
+  try {
+    const vols = buildVolumeList();
+    await nv.loadVolumes(vols);
+
+    // ── Background z-score detection (runs once per bgAnalyzed=false) ──
+    if (!bgAnalyzed) {
+      bgAnalyzed = true;
+      const bgVol = nv.volumes[0];
+      if (bgVol && autoThreshBg) {
+        const rMin = robustStat(bgVol, "robust_min", "cal_min", "global_min");
+        if (rMin < -0.5) {
+          // z-scored image: background voxels are ~0 and appear mid-grey.
+          // Setting cal_min slightly above 0 makes them render black.
+          bgCalMin = 0.02;
+          _reloading = false;
+          await reloadVolumes();  // one extra reload with threshold applied
+          return;
+        }
+      }
     }
+
+    // ── Read robust stats for each active visible layer ──────────────
+    const maskOff = MANIFEST.mask && maskVisible ? 1 : 0;
+    let vi = 0;
+    let rangesChanged = false;
+    activeLayers.forEach(layer => {
+      if (!layer.visible || !layer.urlKey) return;
+      const nvVol = nv.volumes[1 + maskOff + vi++];
+      if (!nvVol) return;
+      const rMin = robustStat(nvVol, "robust_min", "cal_min", "global_min");
+      const rMax = robustStat(nvVol, "robust_max", "cal_max", "global_max");
+      if (layer.robustMin === null || Math.abs(layer.robustMin - rMin) > 1e-6) {
+        layer.robustMin = rMin; layer.robustMax = rMax;
+        if (layer.calMin === null) layer.calMin = rMin;
+        if (layer.calMax === null) layer.calMax = rMax;
+        rangesChanged = true;
+      }
+    });
+    if (rangesChanged) renderLayerCards();
+
+    // ── 4D tracking ──────────────────────────────────────────────────
+    if (MANIFEST.feature_4d) {
+      const idx = nv.volumes.findIndex(v => v.url && v.url.includes(MANIFEST.feature_4d));
+      if (idx >= 0) vol4dId = nv.volumes[idx].id;
+    }
+
+    // ── Flat overlay colorbar ─────────────────────────────────────────
+    const cb = document.getElementById("colorbar-block");
+    if (cb) {
+      if (!currentOverlay) { cb.style.display = "none"; }
+      else {
+        const ov = nv.volumes.find(v => v.url && v.url.includes(currentOverlay));
+        const strip = document.getElementById("colorbar-strip");
+        if (strip) strip.style.background = `linear-gradient(to right,${cmGrad(currentColormap)})`;
+        const cbMin = document.getElementById("cb-min");
+        const cbMax = document.getElementById("cb-max");
+        if (ov && cbMin) cbMin.textContent = (ov.cal_min ?? 0).toFixed(4);
+        if (ov && cbMax) cbMax.textContent = (ov.cal_max ?? 1).toFixed(4);
+        cb.style.display = "flex";
+      }
+    }
+  } finally {
+    _reloading = false;
+    if (_pendingReload) reloadVolumes();
   }
 }
 
 // ── Init ─────────────────────────────────────────────────────
 async function init() {
-  const canvas = document.getElementById("gl");
-  nv.attachToCanvas(canvas);
+  nv.attachToCanvas(document.getElementById("gl"));
   await reloadVolumes();
   nv.setSliceType(nv.sliceTypeMultiplanar);
+  if (currentRegion) {
+    populateAddDropdown(currentRegion);
+    const rsel = document.getElementById("region-select");
+    if (rsel) rsel.value = currentRegion;
+  }
+  setTimeout(() => { try { nv.resizeListener(); } catch(e) {} }, 100);
+}
+
+// ── Sidebar collapse tab ──────────────────────────────────────
+function toggleSidebar() {
+  sidebarOpen = !sidebarOpen;
+  document.getElementById("sidebar").classList.toggle("collapsed", !sidebarOpen);
+  const tab = document.getElementById("sidebar-tab");
+  tab.innerHTML = sidebarOpen ? "&#8249;" : "&#8250;";
+  setTimeout(() => { try { nv.resizeListener(); } catch(e) {} }, 240);
 }
 
 // ── View mode ─────────────────────────────────────────────────
@@ -340,44 +783,59 @@ function setViewMode(mode) {
   }
 }
 
-// ── Mask controls ─────────────────────────────────────────────
-function onMaskToggle() {
-  maskVisible = document.getElementById("mask-visible").checked;
+// ── Crosshair toggle ──────────────────────────────────────────
+function onCrosshairToggle() {
+  const on = document.getElementById("crosshair-cb").checked;
+  try { nv.setCrosshairWidth(on ? 1 : 0); nv.drawScene(); } catch(e) {}
+}
+
+// ── Zoom ─────────────────────────────────────────────────────
+function applyZoom() {
+  try {
+    // NiiVue exposes zoom via uiData.pan2Dxyzmm[3] (the scale component).
+    // zoom2D is a getter/setter wrapping this in newer builds.
+    if (typeof nv.zoom2D === "number") {
+      nv.zoom2D = zoomLevel;
+    } else if (nv.uiData && Array.isArray(nv.uiData.pan2Dxyzmm)) {
+      nv.uiData.pan2Dxyzmm[3] = zoomLevel;
+      nv.drawScene();
+    }
+  } catch(e) {}
+  document.getElementById("zoom-slider").value = zoomLevel;
+  document.getElementById("zoom-val").textContent = zoomLevel.toFixed(1) + "×";
+}
+function onZoomSlider(el) { zoomLevel = parseFloat(el.value); applyZoom(); }
+function stepZoom(d) { zoomLevel = Math.max(0.3, Math.min(5, +(zoomLevel + d).toFixed(2))); applyZoom(); }
+
+// ── Auto-threshold background ─────────────────────────────────
+function onAutoThreshToggle() {
+  autoThreshBg = document.getElementById("autothresh-cb").checked;
+  bgCalMin   = null;
+  bgAnalyzed = false;
   reloadVolumes();
 }
+
+// ── Mask ──────────────────────────────────────────────────────
+function onMaskToggle()    { maskVisible = document.getElementById("mask-visible").checked; reloadVolumes(); }
 function onMaskOpacity(el) {
   maskOpacity = parseFloat(el.value);
   document.getElementById("mask-opacity-val").textContent = maskOpacity.toFixed(2);
   reloadVolumes();
 }
 
-// ── Overlay controls ──────────────────────────────────────────
-function onOverlayChange(el) {
-  currentOverlay = el.value || null;
-  reloadVolumes();
-}
-function onColormapChange(el) {
-  currentColormap = el.value;
-  reloadVolumes();
-}
-function onOverlayOpacity(el) {
+// ── Flat overlay controls ─────────────────────────────────────
+function onOverlayChange(el)   { currentOverlay   = el.value || null; reloadVolumes(); }
+function onColormapChange(el)  { currentColormap  = el.value;         reloadVolumes(); }
+function onOverlayOpacity(el)  {
   currentOverlayOp = parseFloat(el.value);
   document.getElementById("overlay-opacity-val").textContent = currentOverlayOp.toFixed(2);
   reloadVolumes();
 }
 
-// ── 4D controls ───────────────────────────────────────────────
-function onFeature4DChange(el) {
-  const frameIdx = parseInt(el.value, 10);
-  if (vol4dId !== null) {
-    nv.setFrame4D(vol4dId, frameIdx);
-  }
-}
-function onColormap4DChange(el) {
-  map4dColormap = el.value;
-  reloadVolumes();
-}
-function onMap4DOpacity(el) {
+// ── 4D ───────────────────────────────────────────────────────
+function onFeature4DChange(el)  { if (vol4dId !== null) nv.setFrame4D(vol4dId, parseInt(el.value,10)); }
+function onColormap4DChange(el) { map4dColormap = el.value; reloadVolumes(); }
+function onMap4DOpacity(el)     {
   map4dOpacity = parseFloat(el.value);
   document.getElementById("map4d-opacity-val").textContent = map4dOpacity.toFixed(2);
   reloadVolumes();

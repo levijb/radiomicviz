@@ -39,7 +39,8 @@ def launch_viewer(
     mask: Optional[str | Path] = None,
     overlays: Optional[list[str | Path]] = None,
     feature_4d: Optional[str | Path] = None,
-    overlay_dir: Optional[str | Path] = None,
+    overlay_dirs: Optional[list[str | Path]] = None,
+    overlay_dir: Optional[str | Path] = None,   # kept for backward compat
     port: int = 0,
     open_browser: bool = True,
 ) -> None:
@@ -53,21 +54,30 @@ def launch_viewer(
     mask : str or Path, optional
         Mask NIfTI (shown as semi-transparent red overlay).
     overlays : list of str or Path, optional
-        Feature map NIfTIs or NRRD files selectable via dropdown.
+        Explicit feature map NIfTIs or NRRD files (no region grouping).
         NRRD files are converted to NIfTI on-the-fly by the server.
     feature_4d : str or Path, optional
         4D NIfTI with stacked feature maps.  A sidecar
         ``<stem>.features.json`` is read if present for feature names.
+    overlay_dirs : list of str or Path, optional
+        ROI directories to scan.  Each directory becomes a named region in
+        the viewer sidebar, with ``*.nrrd`` / ``*.nii.gz`` files inside as
+        selectable features.  URL keys are prefixed with the directory name
+        to guarantee uniqueness across regions.
     overlay_dir : str or Path, optional
-        Directory to scan for overlay files.  All ``*.nrrd`` and
-        ``*.nii.gz`` files found are added to the overlay list.
-        Combined with any explicit ``overlays`` entries.
+        Single-directory shorthand (backward compat). Appended to
+        ``overlay_dirs`` when provided.
     port : int
         Port to bind (0 = pick a free port automatically).
     open_browser : bool
         Open the system browser automatically.
     """
     _check_flask()
+
+    # Merge overlay_dir (singular BC param) into overlay_dirs list
+    all_dirs: list[Path] = [Path(d).resolve() for d in (overlay_dirs or [])]
+    if overlay_dir:
+        all_dirs.append(Path(overlay_dir).resolve())
 
     files: dict[str, str] = {}
 
@@ -77,14 +87,26 @@ def launch_viewer(
     if mask:
         mask_name = _register(files, Path(mask).resolve())
 
-    # Combine explicit overlays with any files found in overlay_dir
-    all_overlays: list[Path] = [Path(ov).resolve() for ov in (overlays or [])]
-    if overlay_dir:
-        all_overlays.extend(_collect_overlay_dir(overlay_dir))
-
+    # Explicit single-file overlays (no region grouping)
     overlay_names: list[str] = []
-    for ov in all_overlays:
-        overlay_names.append(_register(files, ov))
+    for ov in (overlays or []):
+        overlay_names.append(_register(files, Path(ov).resolve()))
+
+    # Region directories — each dir becomes a named region.
+    # URL keys are always "{region_name}__{feature}.nii.gz" for consistency.
+    regions: dict[str, list[str]] = {}
+    for dp in all_dirs:
+        region_name = dp.name
+        region_urls: list[str] = []
+        for p in _collect_overlay_dir(dp):
+            raw = p.name
+            feat_name = raw[:-5] + ".nii.gz" if raw.endswith(".nrrd") else raw
+            key = f"{region_name}__{feat_name}"
+            files[key] = str(p)
+            region_urls.append(key)
+        if region_urls:
+            regions[region_name] = region_urls
+            logger.info("Region '%s': %d features", region_name, len(region_urls))
 
     feat4d_name = None
     feat4d_features: list[str] = []
@@ -106,7 +128,8 @@ def launch_viewer(
     manifest = {
         "image": image_name,
         "mask": mask_name,
-        "overlays": overlay_names,
+        "regions": regions,          # {region_name: [url_key, ...]}
+        "overlays": overlay_names,   # explicit single-file overlays (no region)
         "feature_4d": feat4d_name,
         "feature_4d_features": feat4d_features,
         "feature_4d_n_frames": feat4d_n_frames,

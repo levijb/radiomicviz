@@ -303,9 +303,10 @@ def generate_slurm(subjects, image_col, mask_col, preset, config, output_dir,
               help="Feature map NIfTI or NRRD file(s) to load as overlays (repeatable)")
 @click.option("--feature-4d", default=None, type=click.Path(exists=True),
               help="4D NIfTI with stacked feature maps")
-@click.option("--overlay-dir", default=None, type=click.Path(exists=True, file_okay=False),
-              help="Directory of .nrrd / .nii.gz feature maps — all files are added as overlays. "
-                   "E.g. ./Left_whole_thalamus/")
+@click.option("--overlay-dir", multiple=True, type=click.Path(exists=True, file_okay=False),
+              help="Directory of .nrrd / .nii.gz feature maps — all files are added as overlays "
+                   "for that region. Repeatable for multiple ROI directories. "
+                   "E.g. --overlay-dir Left_whole_thalamus/ --overlay-dir Right_whole_thalamus/")
 @click.option("--port", type=int, default=0, help="Port (0 = auto)")
 @click.option("--no-browser", is_flag=True, help="Don't open browser automatically")
 @click.option("-v", "--verbose", is_flag=True)
@@ -321,7 +322,7 @@ def view(image, mask, overlays, feature_4d, overlay_dir, port, no_browser, verbo
             mask=mask,
             overlays=list(overlays),
             feature_4d=feature_4d,
-            overlay_dir=overlay_dir,
+            overlay_dirs=list(overlay_dir),
             port=port,
             open_browser=not no_browser,
         )
