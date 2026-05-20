@@ -26,10 +26,4 @@ sphinx>=6.0
 sphinx-rtd-theme>=1.2
 
 [viewer]
-panel>=1.0
-holoviews>=1.15
-bokeh>=3.0
-nilearn>=0.10
-vtk>=9.0
-pyvista>=0.38
-matplotlib>=3.5
+flask>=2.3

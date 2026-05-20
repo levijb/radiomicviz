@@ -358,7 +358,7 @@ def _serve(
     server_thread.start()
 
     url = f"http://localhost:{port}"
-    print(f"\nRadiomicViz viewer → {url}")
+    print(f"\nRadiomicViz viewer -> {url}")
     print("Press Ctrl+C to stop.\n")
 
     if open_browser:

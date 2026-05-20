@@ -5,6 +5,7 @@ src/radiomicviz/_slurm.py
 src/radiomicviz/_version.py
 src/radiomicviz/batch.py
 src/radiomicviz/cli.py
+src/radiomicviz/cohort.py
 src/radiomicviz/config.py
 src/radiomicviz/extract.py
 src/radiomicviz/result.py
@@ -21,6 +22,9 @@ src/radiomicviz/presets/mri-default.yaml
 src/radiomicviz/presets/mri-firstorder.yaml
 src/radiomicviz/presets/mri-habitat.yaml
 src/radiomicviz/presets/mri-texture.yaml
+src/radiomicviz/viewer/__init__.py
+src/radiomicviz/viewer/app.py
+src/radiomicviz/viewer/templates/viewer.html
 tests/test_config.py
 tests/test_extract.py
 tests/test_validate.py

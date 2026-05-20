@@ -7,7 +7,17 @@
       "Bash(dir /s /b \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\VIEWER_SPEC.md\")",
       "Bash(python *)",
       "Bash(pip show *)",
-      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe -c \"import radiomics; from radiomics.featureextractor import RadiomicsFeatureExtractor; import inspect; src = inspect.getsource\\(RadiomicsFeatureExtractor.execute\\); print\\(src[:5000]\\)\" 2>&1)"
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\python.exe -c \"import radiomics; from radiomics.featureextractor import RadiomicsFeatureExtractor; import inspect; src = inspect.getsource\\(RadiomicsFeatureExtractor.execute\\); print\\(src[:5000]\\)\" 2>&1)",
+      "PowerShell(& \"C:\\\\Users\\\\levij\\\\AppData\\\\Local\\\\Microsoft\\\\WindowsApps\\\\python3.11.exe\" -c \"import radiomicviz; print\\(radiomicviz.__file__\\)\" 2>&1)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(head *)",
+      "PowerShell(pip show *)",
+      "PowerShell(python -c \"import radiomicviz; print\\(radiomicviz.__file__\\)\")",
+      "PowerShell(Get-Content *)",
+      "PowerShell(netstat *)",
+      "PowerShell(Write-Host \"=== GET / ===\"; \\(Invoke-WebRequest \"http://localhost:8888/\" -UseBasicParsing\\).StatusCode; Write-Host \"=== GET /api/volumes ===\"; $vol = \\(Invoke-WebRequest \"http://localhost:8888/api/volumes\" -UseBasicParsing\\).Content; $vol | ConvertFrom-Json | ConvertTo-Json -Depth 5)",
+      "PowerShell(Write-Host \"=== --overlay-dir count \\(should be 94, excluding .done\\) ===\"; \\($vol = \\(Invoke-WebRequest \"http://localhost:8888/api/volumes\" -UseBasicParsing\\).Content | ConvertFrom-Json\\); $vol.overlays.Count; Write-Host \"=== First and last overlay name ===\"; $vol.overlays[0]; $vol.overlays[-1])",
+      "PowerShell(Stop-Process *)"
     ]
   }
 }
