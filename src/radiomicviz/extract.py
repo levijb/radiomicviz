@@ -71,6 +71,7 @@ def extract(
     overrides: Optional[dict[str, Any]] = None,
     mode: str = "roi",
     label: Optional[int] = None,
+    roi_name: Optional[str] = None,
     modality: Optional[str] = None,
     subject_id: Optional[str] = None,
     skip_validation: bool = False,
@@ -101,6 +102,10 @@ def extract(
     label : int, optional
         Extract features only for this mask label. If None, extracts
         for all nonzero labels.
+    roi_name : str, optional
+        Meaningful name for the ROI (e.g. ``"Left_whole_thalamus"``).
+        Used as the output folder name instead of ``"label{N}"`` when saving
+        voxelwise .nrrd maps. Falls back to ``"label{N}"`` if not provided.
     modality : str, optional
         Label for the image modality (e.g. ``"T1"``, ``"FLAIR"``).
         Stored in metadata, not used for extraction.
@@ -234,7 +239,7 @@ def extract(
         features_df = _build_roi_dataframe(all_features)
         feature_maps = None
     else:
-        features_df, feature_maps = _build_voxelwise_result(all_features)
+        features_df, feature_maps = _build_voxelwise_result(all_features, roi_name=roi_name)
 
     metadata = ExtractionMetadata(
         image_path=str(image),
@@ -243,6 +248,7 @@ def extract(
         config=resolved_config,
         mode=mode,
         label=label,
+        roi_name=roi_name,
         modality=modality,
         subject_id=subject_id,
         pyradiomics_version=radiomics.__version__,
@@ -290,12 +296,13 @@ def _build_roi_dataframe(
 
 def _build_voxelwise_result(
     all_features: dict[int, dict[str, Any]],
+    roi_name: Optional[str] = None,
 ) -> tuple[pd.DataFrame, dict[str, dict[str, Any]]]:
     """Build summary DataFrame + nested feature map dict from voxelwise results.
 
     Returns feature_maps as {label_key: {feature_name: sitk.Image}}, where
-    label_key is e.g. "label1". Summary stats are computed from each image
-    so the DataFrame still has per-label mean/std/median columns.
+    label_key is the roi_name (if provided) or "label{N}". With multiple labels
+    and a roi_name, the key becomes "{roi_name}_label{N}" to avoid collisions.
     """
     import SimpleITK as sitk
 
@@ -304,9 +311,13 @@ def _build_voxelwise_result(
 
     feature_maps: dict[str, dict[str, Any]] = {}
     summary_rows = []
+    multi_label = len(all_features) > 1
 
     for lbl, feats in all_features.items():
-        label_key = f"label{lbl}"
+        if roi_name:
+            label_key = f"{roi_name}_label{lbl}" if multi_label else roi_name
+        else:
+            label_key = f"label{lbl}"
         label_maps: dict[str, Any] = {}
         row: dict[str, Any] = {"label": lbl}
 

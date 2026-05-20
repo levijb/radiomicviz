@@ -39,6 +39,7 @@ class ExtractionMetadata:
     config: dict[str, Any] = field(default_factory=dict)
     mode: str = "roi"  # "roi" or "voxelwise"
     label: Optional[int] = None
+    roi_name: Optional[str] = None
     modality: Optional[str] = None
     subject_id: Optional[str] = None
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())

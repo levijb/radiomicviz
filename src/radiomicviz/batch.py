@@ -45,6 +45,8 @@ def batch_extract(
     overrides: Optional[dict[str, Any]] = None,
     mode: str = "roi",
     label: Optional[int] = None,
+    roi_name: Optional[str] = None,
+    roi_name_col: Optional[str] = None,
     modality: Optional[str] = None,
     subject_id_col: Optional[str] = None,
     label_col: Optional[str] = None,
@@ -76,6 +78,13 @@ def batch_extract(
         ``"roi"`` or ``"voxelwise"``.
     label : int, optional
         Label to extract (overrides per-subject label_col).
+    roi_name : str, optional
+        Meaningful name for the ROI used as the voxelwise output folder name
+        (e.g. ``"Left_whole_thalamus"``). Applied to every subject when set.
+        Overridden per-subject by ``roi_name_col`` values.
+    roi_name_col : str, optional
+        Column in the CSV with per-subject ROI names. Takes priority over
+        ``roi_name``. Falls back to ``"label{N}"`` when neither is provided.
     modality : str, optional
         Modality label for metadata.
     subject_id_col : str, optional
@@ -144,11 +153,17 @@ def batch_extract(
         sub_id = str(row[id_col])
         sub_label = int(row[label_col]) if label_col and label_col in df.columns else label
 
+        if roi_name_col and roi_name_col in df.columns and pd.notna(row[roi_name_col]):
+            sub_roi_name = str(row[roi_name_col])
+        else:
+            sub_roi_name = roi_name
+
         jobs.append({
             "subject_id": sub_id,
             "image": row[image_col],
             "mask": row[mask_col],
             "label": sub_label,
+            "roi_name": sub_roi_name,
             "row_data": row.to_dict(),
         })
 
@@ -177,6 +192,7 @@ def batch_extract(
             )
             for job in jobs
         )
+
 
     total_time = time.time() - t0
 
@@ -248,6 +264,7 @@ def _extract_one(
             overrides=overrides,
             mode=mode,
             label=job.get("label"),
+            roi_name=job.get("roi_name"),
             modality=modality,
             subject_id=sub_id,
             skip_validation=skip_validation,

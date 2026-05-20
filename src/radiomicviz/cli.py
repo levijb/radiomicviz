@@ -69,12 +69,15 @@ def generate_csv(study_folder, output_csv_name):
               help="Extraction mode")
 @click.option("-l", "--label", type=int, default=None,
               help="Specific mask label to extract")
+@click.option("--roi-name", default=None,
+              help="Meaningful ROI name used as the voxelwise output folder (e.g. Left_whole_thalamus). "
+                   "Falls back to 'label{N}' if not provided.")
 @click.option("--modality", default=None, help="Modality label (e.g. T1, FLAIR)")
 @click.option("--subject-id", default=None, help="Subject identifier for metadata")
 @click.option("--skip-validation", is_flag=True, help="Skip input validation")
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output")
 def extract(image, mask, preset, config, output, output_4d, mode,
-            label, modality, subject_id, skip_validation, verbose):
+            label, roi_name, modality, subject_id, skip_validation, verbose):
     """Extract radiomic features from a single image-mask pair."""
     _setup_logging(verbose)
 
@@ -85,7 +88,7 @@ def extract(image, mask, preset, config, output, output_4d, mode,
     try:
         result = _extract(
             image=image, mask=mask, preset=preset, config=config,
-            mode=mode, label=label, modality=modality,
+            mode=mode, label=label, roi_name=roi_name, modality=modality,
             subject_id=subject_id, skip_validation=skip_validation,
             retain_mask=retain_mask,
         )
@@ -133,14 +136,20 @@ def extract(image, mask, preset, config, output, output_4d, mode,
 @click.option("-l", "--label", type=int, default=None,
               help="Label to extract (overrides per-subject)")
 @click.option("--label-col", default=None, help="Column with per-subject labels")
+@click.option("--roi-name", default=None,
+              help="Meaningful ROI name used as the voxelwise output folder for all subjects "
+                   "(e.g. Left_whole_thalamus). Overridden per-subject by --roi-name-col.")
+@click.option("--roi-name-col", default=None,
+              help="CSV column with per-subject ROI names (e.g. 'roi_name'). "
+                   "Takes priority over --roi-name.")
 @click.option("--subject-id-col", default=None, help="Column with subject IDs")
 @click.option("--modality", default=None, help="Modality label")
 @click.option("-n", "--n-jobs", type=int, default=1, help="Parallel workers")
 @click.option("--skip-validation", is_flag=True)
 @click.option("-v", "--verbose", is_flag=True)
 def batch_extract_cmd(subjects, image_col, mask_col, preset, config, output_dir,
-                      mode, save_maps, label, label_col, subject_id_col, modality,
-                      n_jobs, skip_validation, verbose):
+                      mode, save_maps, label, label_col, roi_name, roi_name_col,
+                      subject_id_col, modality, n_jobs, skip_validation, verbose):
     """Extract radiomic features from a cohort of subjects."""
     _setup_logging(verbose)
 
@@ -155,9 +164,9 @@ def batch_extract_cmd(subjects, image_col, mask_col, preset, config, output_dir,
         results = batch_extract(
             subjects_csv=subjects, image_col=image_col, mask_col=mask_col,
             preset=preset, config=config, mode=mode, label=label,
-            label_col=label_col, subject_id_col=subject_id_col,
-            modality=modality, n_jobs=n_jobs, output_dir=output_dir,
-            skip_validation=skip_validation, save_maps=save_maps,
+            label_col=label_col, roi_name=roi_name, roi_name_col=roi_name_col,
+            subject_id_col=subject_id_col, modality=modality, n_jobs=n_jobs,
+            output_dir=output_dir, skip_validation=skip_validation, save_maps=save_maps,
         )
         click.echo(f"\nExtracted {len(results)} subjects → {output_dir}")
     except Exception as exc:
