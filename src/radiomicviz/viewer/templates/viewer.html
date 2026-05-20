@@ -197,8 +197,14 @@
         <span class="val" id="zoom-val">1.0&times;</span>
       </div>
       <div class="toggle-row">
-        <label title="When the image is z-scored, force background voxels to black">Auto-threshold bg</label>
+        <label title="Push cal_min above 0 so background voxels render as black">Auto-threshold bg</label>
         <input type="checkbox" id="autothresh-cb" checked onchange="onAutoThreshToggle()">
+      </div>
+      <div class="row" id="thresh-row">
+        <label>Thresh</label>
+        <input type="range" id="thresh-slider" min="0.01" max="2" step="0.01" value="0.1"
+               oninput="onThreshSlider(this)">
+        <span class="val" id="thresh-val">0.10</span>
       </div>
     </div>
 
@@ -242,12 +248,9 @@
       {% endif %}
 
       <label>Feature</label>
-      <div class="add-row">
-        <select id="add-overlay-select">
-          <option value="">&#8212; none &#8212;</option>
-        </select>
-        <button class="add-btn" onclick="addCurrentLayer()" title="Add as overlay">+</button>
-      </div>
+      <select id="add-overlay-select">
+        <option value="">&#8212; none &#8212;</option>
+      </select>
 
       <label>Colormap</label>
       <select id="add-colormap-select">
@@ -262,6 +265,8 @@
         <option value="green">Green</option>
         <option value="gray">Gray</option>
       </select>
+
+      <button onclick="addCurrentLayer()" title="Add as overlay">+ Add Layer</button>
     </div>
 
     <!-- ── Active Overlays ── -->
@@ -407,6 +412,7 @@ let vol4dId       = null;
 
 let sidebarOpen   = true;
 let autoThreshBg  = true;
+let bgCalMin      = 0.1;
 let currentBgFile = MANIFEST.image;
 let zoomLevel     = 1.0;
 
@@ -414,6 +420,7 @@ let zoomLevel     = 1.0;
 const nv = new niivue.Niivue({
   backColor: [0.051, 0.059, 0.094, 1],
   crosshairColor: [1, 0.35, 0.35, 0.85],
+  crosshairWidth: 0.5,
   show3Dcrosshair: true,
   onLocationChange: onLocation,
 });
@@ -651,7 +658,6 @@ function renderLayerCards() {
 // ── Volume list ───────────────────────────────────────────────
 function buildVolumeList() {
   const bgSpec = { url:`/data/${currentBgFile}`, colormap:"gray", opacity:1, colorbarVisible:false };
-  if (autoThreshBg) bgSpec.cal_min = 0.1;
   const vols = [bgSpec];
 
   if (MANIFEST.mask && maskVisible)
@@ -693,6 +699,9 @@ async function reloadVolumes() {
   try {
     const vols = buildVolumeList();
     await nv.loadVolumes(vols);
+
+    // ── Apply auto-threshold to background by direct volume mutation ──
+    applyBgCalMin();
 
     // ── Read robust stats for each active visible layer ──────────────
     const maskOff = MANIFEST.mask && maskVisible ? 1 : 0;
@@ -803,21 +812,43 @@ function setViewMode(mode) {
 // ── Crosshair toggle ──────────────────────────────────────────
 function onCrosshairToggle() {
   const on = document.getElementById("crosshair-cb").checked;
-  try { nv.setCrosshairWidth(on ? 1 : 0); nv.drawScene(); } catch(e) {}
+  const w = on ? 0.5 : 0;
+  try {
+    nv.setCrosshairWidth(w);
+    nv.drawScene();
+  } catch(e) {
+    try { nv.opts.crosshairWidth = w; nv.drawScene(); } catch(e2) {}
+  }
 }
 
 // ── Zoom ─────────────────────────────────────────────────────
 function applyZoom() {
   try {
-    // NiiVue exposes zoom via uiData.pan2Dxyzmm[3] (the scale component).
-    // zoom2D is a getter/setter wrapping this in newer builds.
-    if (typeof nv.zoom2D === "number") {
-      nv.zoom2D = zoomLevel;
+    // 2D multiplanar zoom lives in scene.pan2Dxyzmm[3]
+    if (nv.scene && Array.isArray(nv.scene.pan2Dxyzmm)) {
+      nv.scene.pan2Dxyzmm[3] = zoomLevel;
+      console.log("[Zoom2D] nv.scene.pan2Dxyzmm[3] =", zoomLevel);
     } else if (nv.uiData && Array.isArray(nv.uiData.pan2Dxyzmm)) {
       nv.uiData.pan2Dxyzmm[3] = zoomLevel;
-      nv.drawScene();
+      console.log("[Zoom2D] nv.uiData.pan2Dxyzmm[3] =", zoomLevel);
+    } else {
+      console.warn("[Zoom2D] no pan2Dxyzmm found. nv.scene:", nv.scene, "nv.uiData:", nv.uiData);
     }
-  } catch(e) {}
+    // 3D zoom (apply alongside 2D)
+    if (typeof nv.setZoom === "function") {
+      nv.setZoom(zoomLevel);
+      console.log("[Zoom3D] nv.setZoom(", zoomLevel, ")");
+    } else if (typeof nv.setScale === "function") {
+      nv.setScale(zoomLevel);
+      console.log("[Zoom3D] nv.setScale(", zoomLevel, ")");
+    } else if (nv.scene && typeof nv.scene.volScaleMultiplier !== "undefined") {
+      nv.scene.volScaleMultiplier = zoomLevel;
+      console.log("[Zoom3D] nv.scene.volScaleMultiplier =", zoomLevel);
+    }
+    nv.drawScene();
+  } catch(e) {
+    console.error("[Zoom] Error:", e);
+  }
   document.getElementById("zoom-slider").value = zoomLevel;
   document.getElementById("zoom-val").textContent = zoomLevel.toFixed(1) + "×";
 }
@@ -825,9 +856,28 @@ function onZoomSlider(el) { zoomLevel = parseFloat(el.value); applyZoom(); }
 function stepZoom(d) { zoomLevel = Math.max(0.3, Math.min(5, +(zoomLevel + d).toFixed(2))); applyZoom(); }
 
 // ── Auto-threshold background ─────────────────────────────────
+function applyBgCalMin() {
+  if (!nv.volumes[0]) return;
+  const bgVol = nv.volumes[0];
+  bgVol.cal_min = autoThreshBg ? bgCalMin : (bgVol.global_min ?? 0);
+  console.log("[AutoThresh] cal_min =", bgVol.cal_min, "on", bgVol.id);
+  try {
+    if (typeof nv.updateGLVolume === "function") nv.updateGLVolume();
+    else nv.drawScene();
+  } catch(e) { console.warn("[AutoThresh] render error:", e); }
+}
+
+function onThreshSlider(el) {
+  bgCalMin = parseFloat(el.value);
+  document.getElementById("thresh-val").textContent = bgCalMin.toFixed(2);
+  applyBgCalMin();
+}
+
 function onAutoThreshToggle() {
   autoThreshBg = document.getElementById("autothresh-cb").checked;
-  reloadVolumes();
+  const row = document.getElementById("thresh-row");
+  if (row) row.style.display = autoThreshBg ? "" : "none";
+  applyBgCalMin();
 }
 
 // ── Mask ──────────────────────────────────────────────────────
