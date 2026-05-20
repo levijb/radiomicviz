@@ -197,14 +197,17 @@
         <span class="val" id="zoom-val">1.0&times;</span>
       </div>
       <div class="toggle-row">
-        <label title="Push cal_min above 0 so background voxels render as black">Auto-threshold bg</label>
+        <label title="Push cal_min above 0 so background voxels render as black">Auto-threshold background</label>
         <input type="checkbox" id="autothresh-cb" checked onchange="onAutoThreshToggle()">
       </div>
       <div class="row" id="thresh-row">
         <label>Thresh</label>
-        <input type="range" id="thresh-slider" min="0.01" max="2" step="0.01" value="0.1"
-               oninput="onThreshSlider(this)">
-        <span class="val" id="thresh-val">0.10</span>
+        <input type="range" id="thresh-slider" min="0" max="1" step="0.001" value="0.05"
+               oninput="onThresholdChange(this.value)">
+        <input type="number" id="thresh-input" min="0" max="1" step="0.001" value="0.050"
+               onchange="onThresholdChange(this.value)"
+               style="width:58px;flex-shrink:0;background:#080a16;border:1px solid #252e4a;color:#c8cedf;padding:2px 4px;font-size:10px;border-radius:3px;font-family:monospace;">
+        <span id="thresh-val" style="display:none">0.050</span>
       </div>
     </div>
 
@@ -412,7 +415,7 @@ let vol4dId       = null;
 
 let sidebarOpen   = true;
 let autoThreshBg  = true;
-let bgCalMin      = 0.1;
+let bgCalMin      = 0.05;
 let currentBgFile = MANIFEST.image;
 let zoomLevel     = 1.0;
 
@@ -784,6 +787,17 @@ async function init() {
     if (rsel) rsel.value = currentRegion;
   }
   await initBackgrounds();
+
+  // ── Zoom API diagnostics ──────────────────────────────────
+  console.log("NiiVue version:", nv.version || "unknown");
+  try { console.log("nv.scene keys:", JSON.stringify(Object.keys(nv.scene || {}))); } catch(e) {}
+  try { console.log("nv.opts keys:", Object.keys(nv.opts || {}).join(", ")); } catch(e) {}
+  console.log("typeof nv.setZoom2D:", typeof nv.setZoom2D);
+  console.log("typeof nv.setSliceZoom:", typeof nv.setSliceZoom);
+  console.log("typeof nv.setPan2Dxyzmm:", typeof nv.setPan2Dxyzmm);
+  if (nv.scene) console.log("nv.scene.pan2Dxyzmm:", nv.scene.pan2Dxyzmm);
+  if (nv.uiData) console.log("nv.uiData.pan2Dxyzmm:", nv.uiData.pan2Dxyzmm);
+
   setTimeout(() => { try { nv.resizeListener(); } catch(e) {} }, 100);
 }
 
@@ -823,54 +837,67 @@ function onCrosshairToggle() {
 
 // ── Zoom ─────────────────────────────────────────────────────
 function applyZoom() {
-  try {
-    // 2D multiplanar zoom lives in scene.pan2Dxyzmm[3]
-    if (nv.scene && Array.isArray(nv.scene.pan2Dxyzmm)) {
-      nv.scene.pan2Dxyzmm[3] = zoomLevel;
-      console.log("[Zoom2D] nv.scene.pan2Dxyzmm[3] =", zoomLevel);
-    } else if (nv.uiData && Array.isArray(nv.uiData.pan2Dxyzmm)) {
-      nv.uiData.pan2Dxyzmm[3] = zoomLevel;
-      console.log("[Zoom2D] nv.uiData.pan2Dxyzmm[3] =", zoomLevel);
-    } else {
-      console.warn("[Zoom2D] no pan2Dxyzmm found. nv.scene:", nv.scene, "nv.uiData:", nv.uiData);
-    }
-    // 3D zoom (apply alongside 2D)
-    if (typeof nv.setZoom === "function") {
-      nv.setZoom(zoomLevel);
-      console.log("[Zoom3D] nv.setZoom(", zoomLevel, ")");
-    } else if (typeof nv.setScale === "function") {
-      nv.setScale(zoomLevel);
-      console.log("[Zoom3D] nv.setScale(", zoomLevel, ")");
-    } else if (nv.scene && typeof nv.scene.volScaleMultiplier !== "undefined") {
-      nv.scene.volScaleMultiplier = zoomLevel;
-      console.log("[Zoom3D] nv.scene.volScaleMultiplier =", zoomLevel);
-    }
-    nv.drawScene();
-  } catch(e) {
-    console.error("[Zoom] Error:", e);
-  }
-  document.getElementById("zoom-slider").value = zoomLevel;
-  document.getElementById("zoom-val").textContent = zoomLevel.toFixed(1) + "×";
+  const z = zoomLevel;
+  let succeeded = null;
+
+  // a) scene.pan2Dxyzmm[3]
+  if (!succeeded) try {
+    console.log("[Zoom] trying a) nv.scene.pan2Dxyzmm[3] =", z);
+    nv.scene.pan2Dxyzmm[3] = z; nv.drawScene();
+    succeeded = "a) nv.scene.pan2Dxyzmm[3]";
+  } catch(e) { console.log("[Zoom] a) failed:", e.message); }
+
+  // b) uiData.pan2Dxyzmm[3]
+  if (!succeeded) try {
+    console.log("[Zoom] trying b) nv.uiData.pan2Dxyzmm[3] =", z);
+    nv.uiData.pan2Dxyzmm[3] = z; nv.drawScene();
+    succeeded = "b) nv.uiData.pan2Dxyzmm[3]";
+  } catch(e) { console.log("[Zoom] b) failed:", e.message); }
+
+  // c) WheelEvent on canvas
+  if (!succeeded) try {
+    console.log("[Zoom] trying c) WheelEvent");
+    nv.canvas.dispatchEvent(new WheelEvent("wheel", {deltaY: -100 * (z - 1), bubbles: true}));
+    succeeded = "c) WheelEvent";
+  } catch(e) { console.log("[Zoom] c) failed:", e.message); }
+
+  // d) sliceScroll2D
+  if (!succeeded) try {
+    console.log("[Zoom] trying d) nv.sliceScroll2D");
+    if (typeof nv.sliceScroll2D === "function") { nv.sliceScroll2D(z - 1); succeeded = "d) sliceScroll2D"; }
+    else throw new Error("not a function");
+  } catch(e) { console.log("[Zoom] d) failed:", e.message); }
+
+  if (succeeded) console.log("[Zoom] succeeded via:", succeeded);
+  else console.warn("[Zoom] all 2D methods failed — check diagnostics above");
+
+  document.getElementById("zoom-slider").value = z;
+  document.getElementById("zoom-val").textContent = z.toFixed(1) + "×";
 }
 function onZoomSlider(el) { zoomLevel = parseFloat(el.value); applyZoom(); }
 function stepZoom(d) { zoomLevel = Math.max(0.3, Math.min(5, +(zoomLevel + d).toFixed(2))); applyZoom(); }
 
 // ── Auto-threshold background ─────────────────────────────────
-function applyBgCalMin() {
-  if (!nv.volumes[0]) return;
-  const bgVol = nv.volumes[0];
-  bgVol.cal_min = autoThreshBg ? bgCalMin : (bgVol.global_min ?? 0);
-  console.log("[AutoThresh] cal_min =", bgVol.cal_min, "on", bgVol.id);
-  try {
-    if (typeof nv.updateGLVolume === "function") nv.updateGLVolume();
-    else nv.drawScene();
-  } catch(e) { console.warn("[AutoThresh] render error:", e); }
+function onThresholdChange(val) {
+  val = parseFloat(val);
+  bgCalMin = val;
+  document.getElementById("thresh-val").textContent = val.toFixed(3);
+  document.getElementById("thresh-input").value = val.toFixed(3);
+  document.getElementById("thresh-slider").value = val;
+  if (nv.volumes && nv.volumes.length > 0) {
+    nv.volumes[0].cal_min = val;
+    try { nv.updateGLVolume(); } catch(e) { try { nv.drawScene(); } catch(e2) {} }
+    console.log("Set cal_min to", val, "on volume", nv.volumes[0].id);
+  }
 }
 
-function onThreshSlider(el) {
-  bgCalMin = parseFloat(el.value);
-  document.getElementById("thresh-val").textContent = bgCalMin.toFixed(2);
-  applyBgCalMin();
+function applyBgCalMin() {
+  if (!nv.volumes || !nv.volumes[0]) return;
+  const bgVol = nv.volumes[0];
+  const target = autoThreshBg ? bgCalMin : (bgVol.global_min ?? 0);
+  bgVol.cal_min = target;
+  console.log("[AutoThresh] cal_min =", target, "on", bgVol.id);
+  try { nv.updateGLVolume(); } catch(e) { try { nv.drawScene(); } catch(e2) {} }
 }
 
 function onAutoThreshToggle() {
