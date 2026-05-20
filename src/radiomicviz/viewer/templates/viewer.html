@@ -400,9 +400,10 @@ let map4dColormap = "viridis";
 let map4dOpacity  = 0.7;
 let vol4dId       = null;
 
-let sidebarOpen   = true;
-let currentBgFile = MANIFEST.image;
-let zoomLevel     = 1.0;
+let sidebarOpen      = true;
+let currentViewMode  = "multi";
+let currentBgFile    = MANIFEST.image;
+let zoomLevel        = 1.0;
 
 // ── NiiVue ───────────────────────────────────────────────────
 const nv = new niivue.Niivue({
@@ -783,6 +784,7 @@ function toggleSidebar() {
 
 // ── View mode ─────────────────────────────────────────────────
 function setViewMode(mode) {
+  currentViewMode = mode;
   if (mode === "multi") {
     nv.setSliceType(nv.sliceTypeMultiplanar);
     document.getElementById("btn-multi").classList.add("active");
@@ -809,38 +811,52 @@ function onCrosshairToggle() {
 // ── Zoom ─────────────────────────────────────────────────────
 function applyZoom() {
   const z = zoomLevel;
-  let succeeded = null;
 
-  // a) scene.pan2Dxyzmm[3]
-  if (!succeeded) try {
-    console.log("[Zoom] trying a) nv.scene.pan2Dxyzmm[3] =", z);
-    nv.scene.pan2Dxyzmm[3] = z; nv.drawScene();
-    succeeded = "a) nv.scene.pan2Dxyzmm[3]";
-  } catch(e) { console.log("[Zoom] a) failed:", e.message); }
+  if (currentViewMode === "multi") {
+    // 2D multiplanar: pan2Dxyzmm[3] is the zoom multiplier
+    try {
+      nv.scene.pan2Dxyzmm[3] = z;
+      nv.drawScene();
+    } catch(e) { console.warn("[Zoom 2D] pan2Dxyzmm[3] failed:", e.message); }
 
-  // b) uiData.pan2Dxyzmm[3]
-  if (!succeeded) try {
-    console.log("[Zoom] trying b) nv.uiData.pan2Dxyzmm[3] =", z);
-    nv.uiData.pan2Dxyzmm[3] = z; nv.drawScene();
-    succeeded = "b) nv.uiData.pan2Dxyzmm[3]";
-  } catch(e) { console.log("[Zoom] b) failed:", e.message); }
+  } else {
+    // 3D render view — log scene keys once to help identify what works
+    console.log("3D zoom attempt:", Object.keys(nv.scene));
 
-  // c) WheelEvent on canvas
-  if (!succeeded) try {
-    console.log("[Zoom] trying c) WheelEvent");
-    nv.canvas.dispatchEvent(new WheelEvent("wheel", {deltaY: -100 * (z - 1), bubbles: true}));
-    succeeded = "c) WheelEvent";
-  } catch(e) { console.log("[Zoom] c) failed:", e.message); }
+    let done = false;
 
-  // d) sliceScroll2D
-  if (!succeeded) try {
-    console.log("[Zoom] trying d) nv.sliceScroll2D");
-    if (typeof nv.sliceScroll2D === "function") { nv.sliceScroll2D(z - 1); succeeded = "d) sliceScroll2D"; }
-    else throw new Error("not a function");
-  } catch(e) { console.log("[Zoom] d) failed:", e.message); }
+    // a) volScaleMultiplier — scales the rendered volume
+    if (!done) try {
+      nv.scene.volScaleMultiplier = z;
+      nv.drawScene();
+      done = true;
+      console.log("[Zoom 3D] a) volScaleMultiplier OK");
+    } catch(e) { console.log("[Zoom 3D] a) volScaleMultiplier failed:", e.message); }
 
-  if (succeeded) console.log("[Zoom] succeeded via:", succeeded);
-  else console.warn("[Zoom] all 2D methods failed — check diagnostics above");
+    // b) setScale public method
+    if (!done && typeof nv.setScale === "function") try {
+      nv.setScale(z);
+      done = true;
+      console.log("[Zoom 3D] b) setScale OK");
+    } catch(e) { console.log("[Zoom 3D] b) setScale failed:", e.message); }
+
+    // c) field-of-view: narrower FOV = more zoomed in
+    if (!done) try {
+      nv.opts.fov = 240 / z;
+      nv.drawScene();
+      done = true;
+      console.log("[Zoom 3D] c) opts.fov OK");
+    } catch(e) { console.log("[Zoom 3D] c) opts.fov failed:", e.message); }
+
+    // d) synthetic wheel event as last resort
+    if (!done) try {
+      nv.canvas.dispatchEvent(new WheelEvent("wheel", {deltaY: -100 * (z - 1), bubbles: true}));
+      done = true;
+      console.log("[Zoom 3D] d) WheelEvent sent");
+    } catch(e) { console.log("[Zoom 3D] d) WheelEvent failed:", e.message); }
+
+    if (!done) console.warn("[Zoom 3D] all approaches failed — check scene keys above");
+  }
 
   document.getElementById("zoom-slider").value = z;
   document.getElementById("zoom-val").textContent = z.toFixed(1) + "×";

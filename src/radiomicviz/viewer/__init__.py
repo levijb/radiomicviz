@@ -35,12 +35,13 @@ logger = logging.getLogger("radiomicviz.viewer")
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def launch_viewer(
-    image: str | Path,
+    image: Optional[str | Path] = None,
     mask: Optional[str | Path] = None,
     overlays: Optional[list[str | Path]] = None,
     feature_4d: Optional[str | Path] = None,
     overlay_dirs: Optional[list[str | Path]] = None,
     overlay_dir: Optional[str | Path] = None,   # kept for backward compat
+    subject_dir: Optional[str | Path] = None,
     port: int = 0,
     open_browser: bool = True,
 ) -> None:
@@ -49,8 +50,8 @@ def launch_viewer(
 
     Parameters
     ----------
-    image : str or Path
-        Background image NIfTI.
+    image : str or Path, optional
+        Background image NIfTI. Auto-detected from ``subject_dir`` if omitted.
     mask : str or Path, optional
         Mask NIfTI (shown as semi-transparent red overlay).
     overlays : list of str or Path, optional
@@ -67,6 +68,11 @@ def launch_viewer(
     overlay_dir : str or Path, optional
         Single-directory shorthand (backward compat). Appended to
         ``overlay_dirs`` when provided.
+    subject_dir : str or Path, optional
+        Subject root directory. Every subdirectory that contains at least one
+        ``.nrrd`` file is registered as a named region. ``.nii.gz`` files in
+        the root become background image options. ``image`` is auto-detected
+        from the root when not explicitly provided.
     port : int
         Port to bind (0 = pick a free port automatically).
     open_browser : bool
@@ -74,7 +80,31 @@ def launch_viewer(
     """
     _check_flask()
 
-    # Merge overlay_dir (singular BC param) into overlay_dirs list
+    # ── Subject directory auto-discovery ──────────────────────────────────────
+    if subject_dir is not None:
+        _sd = Path(subject_dir).resolve()
+        # Every subdir with at least one .nrrd file becomes a region
+        _discovered: list[Path] = sorted(
+            child for child in _sd.iterdir()
+            if child.is_dir() and any(child.glob("*.nrrd"))
+        )
+        if _discovered:
+            overlay_dirs = list(overlay_dirs or []) + _discovered
+            logger.info("Discovered %d region(s) in %s", len(_discovered), _sd)
+        # Auto-detect image from root .nii.gz files
+        if image is None:
+            _candidates = sorted(_sd.glob("*.nii.gz")) or sorted(_sd.glob("*.nii"))
+            if not _candidates:
+                raise ValueError(
+                    f"No .nii.gz files found in {_sd}; specify --image explicitly."
+                )
+            image = _candidates[0]
+            logger.info("Auto-detected image: %s", image)
+
+    if image is None:
+        raise ValueError("image is required when subject_dir is not provided.")
+
+    # ── Merge overlay_dir (singular BC param) into overlay_dirs list ──────────
     all_dirs: list[Path] = [Path(d).resolve() for d in (overlay_dirs or [])]
     if overlay_dir:
         all_dirs.append(Path(overlay_dir).resolve())
