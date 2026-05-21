@@ -44,6 +44,7 @@ def batch_extract(
     config: Optional[Union[str, Path, dict]] = None,
     overrides: Optional[dict[str, Any]] = None,
     mode: str = "roi",
+    brain_mode: Optional[str] = None,
     label: Optional[int] = None,
     roi_name: Optional[str] = None,
     roi_name_col: Optional[str] = None,
@@ -189,7 +190,7 @@ def batch_extract(
             raw_results.append(
                 _extract_one(
                     job, preset=preset, config=config, overrides=overrides,
-                    mode=mode, modality=modality,
+                    mode=mode, brain_mode=brain_mode, modality=modality,
                     skip_validation=skip_validation,
                     continue_on_error=continue_on_error,
                 )
@@ -199,7 +200,7 @@ def batch_extract(
         raw_results = Parallel(n_jobs=n_jobs, verbose=10)(
             delayed(_extract_one)(
                 job, preset=preset, config=config, overrides=overrides,
-                mode=mode, modality=modality,
+                mode=mode, brain_mode=brain_mode, modality=modality,
                 skip_validation=skip_validation,
                 continue_on_error=continue_on_error,
             )
@@ -223,7 +224,7 @@ def batch_extract(
     if output_dir:
         _save_batch_outputs(
             results, failures, output_dir, subjects_dir,
-            subjects_csv, total_time, save_maps=save_maps
+            subjects_csv, total_time, save_maps=save_maps, brain_mode=brain_mode,
         )
 
     # -- Summary -----------------------------------------------------------
@@ -262,6 +263,7 @@ def _extract_one(
     config: Optional[Union[str, Path, dict]],
     overrides: Optional[dict],
     mode: str,
+    brain_mode: Optional[str] = None,
     modality: Optional[str],
     skip_validation: bool,
     continue_on_error: bool,
@@ -277,6 +279,7 @@ def _extract_one(
             config=config,
             overrides=overrides,
             mode=mode,
+            brain_mode=brain_mode,
             label=job.get("label"),
             roi_name=job.get("roi_name"),
             modality=modality,
@@ -302,6 +305,7 @@ def _save_batch_outputs(
     subjects_csv: Path,
     total_time: float,
     save_maps: bool = False,
+    brain_mode: Optional[str] = None,
 ) -> None:
     """Save combined CSV, per-subject CSVs, and manifest."""
 
@@ -366,6 +370,7 @@ def _save_batch_outputs(
         "succeeded_rows": len(results),
         "failed_rows": len(failures),
         "total_time_seconds": round(total_time, 2),
+        "brain_mode": brain_mode,
         "failed_subjects": failures,
     }
     manifest_path = output_dir / "batch_manifest.json"

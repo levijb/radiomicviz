@@ -139,6 +139,7 @@ Built-in extraction configurations. Use `show_preset("name")` to inspect the ful
 | `mri-firstorder` | Shape + first-order stats | Original | Shape, firstorder |
 | `mri-habitat` | Habitat clustering workflows | Original | Curated first-order + texture subset |
 | `mri-all-transforms` | Exhaustive (thousands of features) | Original, LoG, Wavelet, Square, SquareRoot, Logarithm, Exponential, Gradient, LBP2D, LBP3D | All |
+| `mri-wholebrain` | Whole-brain voxelwise | Original | firstorder (10) + GLCM (7) + GLRLM (4) |
 | `minimal` | Fast sanity checks | Original | Shape + 8 first-order stats |
 
 All presets use `binCount: 32` and normalization except `mri-all-transforms` (which uses `binWidth: 25` with no normalization, matching the standard PyRadiomics example config).
@@ -153,6 +154,33 @@ result = extract("t1.nii.gz", "mask.nii.gz", config="my_params.yaml")
 result = extract("t1.nii.gz", "mask.nii.gz",
                  preset="mri-default",
                  overrides={"binWidth": 50, "label": 2})
+```
+
+### Whole-brain voxelwise extraction
+
+```python
+# Strategy 1: One binarized whole-brain mask
+result = extract("t1.nii.gz", "samseg.nii.gz",
+                 preset="mri-wholebrain",
+                 mode="voxelwise",
+                 brain_mode="whole")
+
+# Strategy 2: Per-region extraction
+result = extract("t1.nii.gz", "samseg.nii.gz",
+                 preset="mri-wholebrain",
+                 mode="voxelwise",
+                 brain_mode="per-region")
+
+# Strategy 3: Hybrid — extract whole-brain, analyze per-region later
+result = extract("t1.nii.gz", "samseg.nii.gz",
+                 preset="mri-wholebrain",
+                 mode="voxelwise",
+                 brain_mode="hybrid")
+
+# Post-hoc region analysis (hybrid only)
+regions = result.available_regions()        # [2, 3, 4, ...]
+hippo_df = result.features_by_region(17)    # label 17 = hippocampus
+caudate_df = result.features_by_region(11)  # label 11 = caudate
 ```
 
 ## Input Format

@@ -46,6 +46,7 @@ class ExtractionMetadata:
     pyradiomics_version: Optional[str] = None
     radiomicviz_version: Optional[str] = None
     extraction_time_seconds: Optional[float] = None
+    brain_mode: Optional[str] = None  # "whole", "per-region", "hybrid", or None
 
     def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in self.__dict__.items() if v is not None}
@@ -90,6 +91,7 @@ class ExtractionResult:
     # ROI: None
     feature_maps: Optional[dict[str, Any]] = None
     mask_nii: Optional[nib.Nifti1Image] = None
+    original_label_map: Optional[np.ndarray] = None  # only set for brain_mode="hybrid"
 
     # -- Properties --------------------------------------------------------
 
@@ -286,6 +288,67 @@ class ExtractionResult:
         logger.info("Saved 4D NIfTI (%d features) to %s", len(ordered_names), path)
         return path
 
+    # -- Hybrid / brain-mode helpers ---------------------------------------
+
+    def features_by_region(self, region_label: int) -> pd.DataFrame:
+        """
+        Filter voxelwise feature maps to voxels belonging to a specific
+        anatomical region. Only available when brain_mode='hybrid'.
+
+        Parameters
+        ----------
+        region_label : int
+            The label value from the original parcellation mask.
+
+        Returns
+        -------
+        pd.DataFrame
+            Feature values for voxels in the specified region.
+            Columns = feature names, rows = voxels.
+
+        Raises
+        ------
+        ValueError
+            If no original_label_map is available (not hybrid mode).
+        """
+        if self.original_label_map is None:
+            raise ValueError(
+                "features_by_region() requires brain_mode='hybrid'. "
+                "Re-run extraction with brain_mode='hybrid'."
+            )
+        if self.feature_maps is None:
+            raise ValueError("No voxelwise feature maps available.")
+
+        import SimpleITK as sitk
+
+        region_mask = (self.original_label_map == region_label)
+
+        data: dict[str, np.ndarray] = {}
+        for _label_key, label_maps in self.feature_maps.items():
+            for feat_name, feat_img in label_maps.items():
+                if isinstance(feat_img, sitk.Image):
+                    # sitk returns (z,y,x); transpose to (x,y,z) to match nibabel
+                    arr = sitk.GetArrayFromImage(feat_img).T
+                else:
+                    arr = np.asarray(feat_img)
+                data[feat_name] = arr[region_mask]
+
+        return pd.DataFrame(data)
+
+    def available_regions(self) -> Optional[list[int]]:
+        """
+        List available region labels from the original parcellation.
+        Only available in hybrid mode.
+
+        Returns
+        -------
+        list of int or None
+        """
+        if self.original_label_map is None:
+            return None
+        labels = np.unique(self.original_label_map)
+        return sorted(int(v) for v in labels if v != 0)
+
     # -- Display -----------------------------------------------------------
 
     def __repr__(self) -> str:
@@ -319,6 +382,11 @@ class ExtractionResult:
         ]
         if self.metadata.extraction_time_seconds:
             lines.append(f"  Time: {self.metadata.extraction_time_seconds:.1f}s")
+        if self.metadata.brain_mode:
+            lines.append(f"  Brain mode: {self.metadata.brain_mode}")
+        if self.original_label_map is not None:
+            n_regions = len(self.available_regions())
+            lines.append(f"  Parcellation regions: {n_regions}")
         if self.diagnostics:
             n_ok = sum(1 for d in self.diagnostics if d.extraction_ok)
             n_warn = sum(1 for d in self.diagnostics if d.warnings)

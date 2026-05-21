@@ -67,6 +67,13 @@ def generate_csv(study_folder, output_csv_name):
               help="Output path for 4D NIfTI of voxelwise feature maps (voxelwise mode only)")
 @click.option("--mode", type=click.Choice(["roi", "voxelwise"]), default="roi",
               help="Extraction mode")
+@click.option("--brain-mode",
+              type=click.Choice(["whole", "per-region", "hybrid"]),
+              default=None,
+              help="Whole-brain strategy: 'whole' (binarize mask), "
+                   "'per-region' (each label separately), "
+                   "'hybrid' (binarize + store label map). "
+                   "Only valid with --mode voxelwise.")
 @click.option("-l", "--label", type=int, default=None,
               help="Specific mask label to extract")
 @click.option("--roi-name", default=None,
@@ -76,7 +83,7 @@ def generate_csv(study_folder, output_csv_name):
 @click.option("--subject-id", default=None, help="Subject identifier for metadata")
 @click.option("--skip-validation", is_flag=True, help="Skip input validation")
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output")
-def extract(image, mask, preset, config, output, output_4d, mode,
+def extract(image, mask, preset, config, output, output_4d, mode, brain_mode,
             label, roi_name, modality, subject_id, skip_validation, verbose):
     """Extract radiomic features from a single image-mask pair."""
     _setup_logging(verbose)
@@ -88,9 +95,9 @@ def extract(image, mask, preset, config, output, output_4d, mode,
     try:
         result = _extract(
             image=image, mask=mask, preset=preset, config=config,
-            mode=mode, label=label, roi_name=roi_name, modality=modality,
-            subject_id=subject_id, skip_validation=skip_validation,
-            retain_mask=retain_mask,
+            mode=mode, brain_mode=brain_mode, label=label, roi_name=roi_name,
+            modality=modality, subject_id=subject_id,
+            skip_validation=skip_validation, retain_mask=retain_mask,
         )
         result.to_csv(output)
         click.echo(result.summary())
@@ -131,6 +138,13 @@ def extract(image, mask, preset, config, output, output_4d, mode,
 @click.option("-o", "--output-dir", default="./radiomics_output/",
               help="Output directory")
 @click.option("--mode", type=click.Choice(["roi", "voxelwise"]), default="roi")
+@click.option("--brain-mode",
+              type=click.Choice(["whole", "per-region", "hybrid"]),
+              default=None,
+              help="Whole-brain strategy: 'whole' (binarize mask), "
+                   "'per-region' (each label separately), "
+                   "'hybrid' (binarize + store label map). "
+                   "Only valid with --mode voxelwise.")
 @click.option("--save-maps", is_flag=True,
               help="Save per-subject 4D NIfTI feature maps (requires --mode voxelwise)")
 @click.option("-l", "--label", type=int, default=None,
@@ -148,7 +162,7 @@ def extract(image, mask, preset, config, output, output_4d, mode,
 @click.option("--skip-validation", is_flag=True)
 @click.option("-v", "--verbose", is_flag=True)
 def batch_extract_cmd(subjects, image_col, mask_col, preset, config, output_dir,
-                      mode, save_maps, label, label_col, roi_name, roi_name_col,
+                      mode, brain_mode, save_maps, label, label_col, roi_name, roi_name_col,
                       subject_id_col, modality, n_jobs, skip_validation, verbose):
     """Extract radiomic features from a cohort of subjects."""
     _setup_logging(verbose)
@@ -163,10 +177,11 @@ def batch_extract_cmd(subjects, image_col, mask_col, preset, config, output_dir,
     try:
         results = batch_extract(
             subjects_csv=subjects, image_col=image_col, mask_col=mask_col,
-            preset=preset, config=config, mode=mode, label=label,
-            label_col=label_col, roi_name=roi_name, roi_name_col=roi_name_col,
-            subject_id_col=subject_id_col, modality=modality, n_jobs=n_jobs,
-            output_dir=output_dir, skip_validation=skip_validation, save_maps=save_maps,
+            preset=preset, config=config, mode=mode, brain_mode=brain_mode,
+            label=label, label_col=label_col, roi_name=roi_name,
+            roi_name_col=roi_name_col, subject_id_col=subject_id_col,
+            modality=modality, n_jobs=n_jobs, output_dir=output_dir,
+            skip_validation=skip_validation, save_maps=save_maps,
         )
         click.echo(f"\nExtracted {len(results)} subjects → {output_dir}")
     except Exception as exc:

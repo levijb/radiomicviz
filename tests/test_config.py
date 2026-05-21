@@ -19,6 +19,7 @@ class TestPresets:
         assert "mri-habitat" in presets
         assert "mri-all-transforms" in presets
         assert "minimal" in presets
+        assert "mri-wholebrain" in presets
 
     def test_load_preset(self):
         config = load_preset("mri-default")
@@ -35,6 +36,16 @@ class TestPresets:
         assert "firstorder" in content
         captured = capsys.readouterr()
         assert "Preset: minimal" in captured.out
+
+    def test_wholebrain_preset_structure(self):
+        config = load_preset("mri-wholebrain")
+        assert "setting" in config
+        assert "voxelSetting" in config
+        assert config["voxelSetting"]["voxelBatch"] == 5000
+        assert "firstorder" in config["featureClass"]
+        assert "glcm" in config["featureClass"]
+        # Should NOT include shape (meaningless for voxelwise)
+        assert "shape" not in config["featureClass"]
 
     def test_all_transforms_preset_has_all_filters(self):
         config = load_preset("mri-all-transforms")

@@ -131,6 +131,106 @@ class TestExtract:
         assert result.metadata.extraction_time_seconds > 0
 
 
+class TestBrainMode:
+    """Tests for brain_mode parameter (whole-brain voxelwise strategies)."""
+
+    def test_brain_mode_requires_voxelwise(self, synthetic_image, synthetic_mask_multi):
+        """brain_mode with mode='roi' should raise ValueError."""
+        from radiomicviz import extract
+        with pytest.raises(ValueError, match="requires mode='voxelwise'"):
+            extract(
+                synthetic_image,
+                synthetic_mask_multi,
+                preset="minimal",
+                mode="roi",
+                brain_mode="whole",
+            )
+
+    def test_brain_mode_invalid_value(self, synthetic_image, synthetic_mask_multi):
+        """Invalid brain_mode value should raise ValueError."""
+        from radiomicviz import extract
+        with pytest.raises(ValueError, match="Invalid brain_mode"):
+            extract(
+                synthetic_image,
+                synthetic_mask_multi,
+                preset="minimal",
+                mode="voxelwise",
+                brain_mode="invalid",
+            )
+
+    def test_brain_mode_whole(self, synthetic_image, synthetic_mask_multi):
+        """brain_mode='whole' should binarize and extract as single label."""
+        from radiomicviz import extract
+        result = extract(
+            synthetic_image,
+            synthetic_mask_multi,
+            preset="minimal",
+            mode="voxelwise",
+            brain_mode="whole",
+        )
+        assert result.metadata.brain_mode == "whole"
+        assert result.feature_maps is not None
+        # Binarized mask → only "label1" key in feature_maps
+        assert list(result.feature_maps.keys()) == ["label1"]
+
+    def test_brain_mode_per_region(self, synthetic_image, synthetic_mask_multi):
+        """brain_mode='per-region' should extract each label separately."""
+        from radiomicviz import extract
+        result = extract(
+            synthetic_image,
+            synthetic_mask_multi,
+            preset="minimal",
+            mode="voxelwise",
+            brain_mode="per-region",
+        )
+        assert result.metadata.brain_mode == "per-region"
+        assert result.feature_maps is not None
+        # synthetic_mask_multi has labels 1, 2, 3 → three keys
+        assert len(result.feature_maps) > 1
+
+    def test_brain_mode_hybrid_stores_label_map(self, synthetic_image, synthetic_mask_multi):
+        """brain_mode='hybrid' should store original_label_map."""
+        from radiomicviz import extract
+        result = extract(
+            synthetic_image,
+            synthetic_mask_multi,
+            preset="minimal",
+            mode="voxelwise",
+            brain_mode="hybrid",
+        )
+        assert result.metadata.brain_mode == "hybrid"
+        assert result.original_label_map is not None
+        assert result.available_regions() is not None
+        assert len(result.available_regions()) > 1
+
+    def test_brain_mode_hybrid_features_by_region(self, synthetic_image, synthetic_mask_multi):
+        """features_by_region() should return data for a valid region."""
+        from radiomicviz import extract
+        result = extract(
+            synthetic_image,
+            synthetic_mask_multi,
+            preset="minimal",
+            mode="voxelwise",
+            brain_mode="hybrid",
+        )
+        regions = result.available_regions()
+        df = result.features_by_region(regions[0])
+        assert len(df) > 0
+        assert len(df.columns) > 0
+
+    def test_features_by_region_without_hybrid_raises(self, synthetic_image, synthetic_mask_single):
+        """features_by_region() without hybrid mode should raise."""
+        from radiomicviz import extract
+        result = extract(
+            synthetic_image,
+            synthetic_mask_single,
+            preset="minimal",
+            mode="voxelwise",
+        )
+        with pytest.raises(ValueError, match="brain_mode='hybrid'"):
+            result.features_by_region(1)
+
+
 class TestBatchExtract:
     def test_basic_batch(self, subjects_csv, tmp_path):
         from radiomicviz import batch_extract

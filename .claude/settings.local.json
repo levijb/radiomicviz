@@ -17,7 +17,13 @@
       "PowerShell(netstat *)",
       "PowerShell(Write-Host \"=== GET / ===\"; \\(Invoke-WebRequest \"http://localhost:8888/\" -UseBasicParsing\\).StatusCode; Write-Host \"=== GET /api/volumes ===\"; $vol = \\(Invoke-WebRequest \"http://localhost:8888/api/volumes\" -UseBasicParsing\\).Content; $vol | ConvertFrom-Json | ConvertTo-Json -Depth 5)",
       "PowerShell(Write-Host \"=== --overlay-dir count \\(should be 94, excluding .done\\) ===\"; \\($vol = \\(Invoke-WebRequest \"http://localhost:8888/api/volumes\" -UseBasicParsing\\).Content | ConvertFrom-Json\\); $vol.overlays.Count; Write-Host \"=== First and last overlay name ===\"; $vol.overlays[0]; $vol.overlays[-1])",
-      "PowerShell(Stop-Process *)"
+      "PowerShell(Stop-Process *)",
+      "Bash(conda run *)",
+      "Bash(where python *)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(& \"$env:USERPROFILE\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\" -m pytest \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\tests\\\\test_config.py\" -v -k \"wholebrain or list_presets\" 2>&1)",
+      "PowerShell(& \"$env:USERPROFILE\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\" -m pytest \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\tests\\\\\" -v 2>&1)",
+      "PowerShell(& \"$env:USERPROFILE\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\" -m pytest \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\tests\\\\\" -v --tb=short 2>&1 | Out-String)"
     ]
   }
 }

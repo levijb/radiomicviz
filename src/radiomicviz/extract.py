@@ -70,6 +70,7 @@ def extract(
     config: Optional[Union[str, Path, dict]] = None,
     overrides: Optional[dict[str, Any]] = None,
     mode: str = "roi",
+    brain_mode: Optional[str] = None,  # None | "whole" | "per-region" | "hybrid"
     label: Optional[int] = None,
     roi_name: Optional[str] = None,
     modality: Optional[str] = None,
@@ -99,6 +100,14 @@ def extract(
         ``"roi"`` for one feature vector per ROI label, or
         ``"voxelwise"`` for per-voxel feature maps (returns sitk.Image per
         feature, saved as .nrrd by batch_extract).
+    brain_mode : str, optional
+        Whole-brain strategy (requires ``mode="voxelwise"``).
+        ``"whole"`` binarizes the mask and extracts once over the full brain.
+        ``"per-region"`` extracts each label separately (semantic alias for
+        the default multi-label behavior).
+        ``"hybrid"`` binarizes and extracts once, but stores the original
+        label map on the result for post-hoc region analysis via
+        ``result.features_by_region(label)``.
     label : int, optional
         Extract features only for this mask label. If None, extracts
         for all nonzero labels.
@@ -163,106 +172,170 @@ def extract(
             resolved_config["setting"] = {}
         resolved_config["setting"]["label"] = label
 
+    # -- Brain mode mask handling ------------------------------------------
+    _tmp_mask_dir = None
+    original_label_map = None
+
+    if brain_mode is not None:
+        if mode != "voxelwise":
+            raise ValueError("brain_mode requires mode='voxelwise'")
+
+        # Warn if using many image transforms — will produce enormous output
+        n_image_types = len(resolved_config.get("imageType", {}))
+        if n_image_types > 2:
+            logger.warning(
+                "Whole-brain voxelwise with %d image transforms will produce large "
+                "feature maps. Consider using 'mri-wholebrain' preset.",
+                n_image_types,
+            )
+
+        if brain_mode in ("whole", "hybrid"):
+            import tempfile
+
+            _tmp_mask_dir = Path(tempfile.mkdtemp(prefix="radiomicviz_brain_"))
+
+            if label is not None and label != 1:
+                logger.warning(
+                    "brain_mode='%s' overrides label=%d → extracting binarized label=1",
+                    brain_mode, label,
+                )
+
+            # Store original label map for hybrid mode
+            if brain_mode == "hybrid":
+                original_mask_nii = nib.load(str(mask))
+                original_label_map = np.asarray(original_mask_nii.dataobj).astype(np.int32)
+
+            # Binarize the mask and force label=1
+            mask = _binarize_mask(mask, tmp_dir=_tmp_mask_dir)
+            label = 1
+            if "setting" not in resolved_config:
+                resolved_config["setting"] = {}
+            resolved_config["setting"]["label"] = 1
+            logger.info("brain_mode='%s': using binarized whole-brain mask", brain_mode)
+
+        elif brain_mode == "per-region":
+            logger.info("brain_mode='per-region': extracting each label separately")
+
+        else:
+            raise ValueError(
+                f"Invalid brain_mode='{brain_mode}'. "
+                f"Must be 'whole', 'per-region', or 'hybrid'."
+            )
+
     # -- PyRadiomics setup -------------------------------------------------
-    import radiomics
-    from radiomics.featureextractor import RadiomicsFeatureExtractor
+    try:
+        import radiomics
+        from radiomics.featureextractor import RadiomicsFeatureExtractor
 
-    extractor = RadiomicsFeatureExtractor(resolved_config)
+        extractor = RadiomicsFeatureExtractor(resolved_config)
 
-    # -- Determine labels to extract ---------------------------------------
-    mask_nii = nib.load(str(mask))
-    mask_data = np.asarray(mask_nii.dataobj).astype(np.int32)
+        # -- Determine labels to extract -----------------------------------
+        mask_nii = nib.load(str(mask))
+        mask_data = np.asarray(mask_nii.dataobj).astype(np.int32)
 
-    if label is not None:
-        labels_to_extract = [label]
-    else:
-        labels_to_extract = sorted(
-            int(v) for v in np.unique(mask_data) if v != 0
+        if label is not None:
+            labels_to_extract = [label]
+        else:
+            labels_to_extract = sorted(
+                int(v) for v in np.unique(mask_data) if v != 0
+            )
+
+        # -- Extract -------------------------------------------------------
+        t0 = time.time()
+        all_features = {}
+        diagnostics = []
+
+        for lbl in labels_to_extract:
+            n_voxels = int(np.sum(mask_data == lbl))
+            diag = ROIDiagnostic(label=lbl, n_voxels=n_voxels)
+
+            # Compute bounding box
+            coords = np.argwhere(mask_data == lbl)
+            if len(coords) > 0:
+                bb_min = coords.min(axis=0)
+                bb_max = coords.max(axis=0)
+                diag.bounding_box = tuple(
+                    (int(lo), int(hi)) for lo, hi in zip(bb_min, bb_max)
+                )
+
+            try:
+                # Set label in extractor for this ROI
+                extractor.settings["label"] = int(lbl)
+
+                logger.info(
+                    "Extracting label %d (%d voxels) from %s",
+                    lbl, n_voxels, image.name,
+                )
+
+                if mode == "voxelwise":
+                    result = extractor.execute(
+                        str(image), str(mask), voxelBased=True, label=int(lbl)
+                    )
+                else:
+                    result = extractor.execute(str(image), str(mask), label=int(lbl))
+
+                # Strip PyRadiomics diagnostic keys; keep everything else as-is.
+                # For voxelwise mode, feature values are sitk.Image objects.
+                feat_dict = {
+                    key: val
+                    for key, val in result.items()
+                    if not key.startswith(_DIAG_PREFIX)
+                }
+
+                all_features[lbl] = feat_dict
+                diag.extraction_ok = True
+
+            except Exception as exc:
+                logger.error("Extraction failed for label %d: %s", lbl, exc)
+                diag.extraction_ok = False
+                diag.error_message = str(exc)
+
+            diagnostics.append(diag)
+
+        extraction_time = time.time() - t0
+
+        # -- Assemble result -----------------------------------------------
+        if mode == "roi":
+            features_df = _build_roi_dataframe(all_features)
+            feature_maps = None
+        else:
+            features_df, feature_maps = _build_voxelwise_result(all_features, roi_name=roi_name)
+
+        metadata = ExtractionMetadata(
+            image_path=str(image),
+            mask_path=str(mask),
+            config_source=config_source,
+            config=resolved_config,
+            mode=mode,
+            label=label,
+            roi_name=roi_name,
+            modality=modality,
+            subject_id=subject_id,
+            pyradiomics_version=radiomics.__version__,
+            radiomicviz_version=__version__,
+            extraction_time_seconds=round(extraction_time, 2),
         )
 
-    # -- Extract -----------------------------------------------------------
-    t0 = time.time()
-    all_features = {}
-    diagnostics = []
+        extraction_result = ExtractionResult(
+            features=features_df,
+            metadata=metadata,
+            diagnostics=diagnostics,
+            feature_maps=feature_maps,
+            mask_nii=mask_nii if retain_mask else None,
+        )
 
-    for lbl in labels_to_extract:
-        n_voxels = int(np.sum(mask_data == lbl))
-        diag = ROIDiagnostic(label=lbl, n_voxels=n_voxels)
+        # Attach brain_mode metadata and hybrid label map
+        if brain_mode is not None:
+            extraction_result.metadata.brain_mode = brain_mode
+        if brain_mode == "hybrid" and original_label_map is not None:
+            extraction_result.original_label_map = original_label_map
 
-        # Compute bounding box
-        coords = np.argwhere(mask_data == lbl)
-        if len(coords) > 0:
-            bb_min = coords.min(axis=0)
-            bb_max = coords.max(axis=0)
-            diag.bounding_box = tuple(
-                (int(lo), int(hi)) for lo, hi in zip(bb_min, bb_max)
-            )
+        return extraction_result
 
-        try:
-            # Set label in extractor for this ROI
-            extractor.settings["label"] = int(lbl)
-
-            logger.info(
-                "Extracting label %d (%d voxels) from %s",
-                lbl, n_voxels, image.name,
-            )
-
-            if mode == "voxelwise":
-                result = extractor.execute(
-                    str(image), str(mask), voxelBased=True, label=int(lbl)
-                )
-            else:
-                result = extractor.execute(str(image), str(mask), label=int(lbl))
-
-            # Strip PyRadiomics diagnostic keys; keep everything else as-is.
-            # For voxelwise mode, feature values are sitk.Image objects.
-            feat_dict = {
-                key: val
-                for key, val in result.items()
-                if not key.startswith(_DIAG_PREFIX)
-            }
-
-            all_features[lbl] = feat_dict
-            diag.extraction_ok = True
-
-        except Exception as exc:
-            logger.error("Extraction failed for label %d: %s", lbl, exc)
-            diag.extraction_ok = False
-            diag.error_message = str(exc)
-
-        diagnostics.append(diag)
-
-    extraction_time = time.time() - t0
-
-    # -- Assemble result ---------------------------------------------------
-    if mode == "roi":
-        features_df = _build_roi_dataframe(all_features)
-        feature_maps = None
-    else:
-        features_df, feature_maps = _build_voxelwise_result(all_features, roi_name=roi_name)
-
-    metadata = ExtractionMetadata(
-        image_path=str(image),
-        mask_path=str(mask),
-        config_source=config_source,
-        config=resolved_config,
-        mode=mode,
-        label=label,
-        roi_name=roi_name,
-        modality=modality,
-        subject_id=subject_id,
-        pyradiomics_version=radiomics.__version__,
-        radiomicviz_version=__version__,
-        extraction_time_seconds=round(extraction_time, 2),
-    )
-
-    return ExtractionResult(
-        features=features_df,
-        metadata=metadata,
-        diagnostics=diagnostics,
-        feature_maps=feature_maps,
-        mask_nii=mask_nii if retain_mask else None,
-    )
+    finally:
+        if _tmp_mask_dir is not None:
+            import shutil
+            shutil.rmtree(_tmp_mask_dir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -340,6 +413,33 @@ def _build_voxelwise_result(
 
     df = pd.DataFrame(summary_rows).set_index("label")
     return df, feature_maps
+
+
+def _binarize_mask(mask_path: Path, tmp_dir: Optional[Path] = None) -> Path:
+    """
+    Binarize a multi-label mask: all nonzero voxels → 1.
+
+    Writes a new NIfTI to tmp_dir (or a tempfile) and returns the path.
+    The caller is responsible for cleanup.
+    """
+    import tempfile
+
+    nii = nib.load(str(mask_path))
+    data = np.asarray(nii.dataobj).astype(np.int32)
+    binary = (data > 0).astype(np.int32)
+
+    if tmp_dir is None:
+        tmp_dir = Path(tempfile.mkdtemp(prefix="radiomicviz_"))
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    out_path = tmp_dir / f"{mask_path.stem.replace('.nii', '')}_wholebrain.nii.gz"
+    nib.save(nib.Nifti1Image(binary, nii.affine, nii.header), str(out_path))
+
+    logger.info(
+        "Binarized mask %s → %s (%d nonzero voxels)",
+        mask_path.name, out_path.name, int(binary.sum()),
+    )
+    return out_path
 
 
 def _sort_feature_columns(df: pd.DataFrame) -> pd.DataFrame:

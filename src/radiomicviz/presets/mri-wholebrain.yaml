@@ -1,0 +1,59 @@
+# radiomicviz preset: mri-wholebrain
+# Optimized for whole-brain voxelwise extraction with samseg or similar
+# parcellation masks. Uses first-order + key texture features only to
+# keep the output manageable at full-brain scale.
+#
+# Intended usage:
+#   result = extract("t1.nii.gz", "samseg.nii.gz",
+#                    preset="mri-wholebrain",
+#                    mode="voxelwise",
+#                    brain_mode="whole")  # or "hybrid"
+
+setting:
+  binCount: 32
+  geometryTolerance: 1e-4
+  label: 1
+  interpolator: 'sitkBSpline'
+  resampledPixelSpacing: null
+  normalize: true
+  normalizeScale: 100
+  voxelArrayShift: 300
+  preCrop: true
+  correctMask: true
+  additionalInfo: false  # skip diagnostics to save memory at scale
+  minimumROIDimensions: 2
+
+imageType:
+  Original: {}
+
+featureClass:
+  firstorder:
+    - 'Mean'
+    - 'Variance'
+    - 'Skewness'
+    - 'Kurtosis'
+    - 'Median'
+    - 'Energy'
+    - 'Entropy'
+    - 'Range'
+    - '10Percentile'
+    - '90Percentile'
+  glcm:
+    - 'Contrast'
+    - 'Correlation'
+    - 'JointEnergy'
+    - 'JointEntropy'
+    - 'Idm'
+    - 'ClusterShade'
+    - 'ClusterProminence'
+  glrlm:
+    - 'ShortRunEmphasis'
+    - 'LongRunEmphasis'
+    - 'RunLengthNonUniformity'
+    - 'RunPercentage'
+
+voxelSetting:
+  kernelRadius: 1
+  maskedKernel: true
+  initValue: nan
+  voxelBatch: 5000  # larger batch size for efficiency on big masks
