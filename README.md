@@ -26,7 +26,8 @@ This approach handles pyradiomics' C++ compilation cleanly across platforms.
 3. Install pyradiomics and the package:
 ```bash
    pip install setuptools numpy wheel
-   pip install pyradiomics==3.0.1 --no-build-isolation
+   pip install pyradiomics==3.0.1 --no-build-isolation --no-deps
+   pip install SimpleITK==2.2.1
    pip install -e . --no-deps
 ```
 
@@ -62,10 +63,11 @@ pip install -e ".[dev]"
 
 ```bash
 pip install setuptools numpy wheel
-pip install pyradiomics==3.0.1 --no-build-isolation
+pip install pyradiomics==3.0.1 --no-build-isolation --no-deps
+pip install SimpleITK==2.2.1
 ```
 
-The `--no-build-isolation` flag lets the build step find your already-installed numpy, and pinning to 3.0.1 avoids a missing `versioneer` error in 3.1.0.
+The `--no-build-isolation` flag lets the build step find your already-installed numpy, and pinning to 3.0.1 avoids a missing `versioneer` error in 3.1.0. pyradiomics pulls in a newer SimpleITK as a dependency that breaks `SetGlobalDefaultCoordinateTolerance`; re-pinning to 2.2.1 fixes this.
 ## Quick Start
 
 ### Python API
