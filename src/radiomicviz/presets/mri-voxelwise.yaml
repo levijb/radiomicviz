@@ -1,4 +1,4 @@
-# radiomicviz preset: mri-habitat
+# radiomicviz preset: mri-voxelwise
 # Curated first-order + texture subset for habitat clustering workflows.
 # Designed for intra-tumor heterogeneity analysis. No shape features (not
 # meaningful in voxelwise / sliding-window mode).

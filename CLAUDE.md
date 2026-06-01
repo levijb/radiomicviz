@@ -158,12 +158,12 @@ Each subject gets its own subfolder under `per_subject/`.
 | `mri-default` | Balanced starting point — all feature classes, original images |
 | `mri-texture` | Texture-only (GLCM, GLRLM, GLSZM, GLDM, NGTDM) |
 | `mri-firstorder` | Shape + first-order statistics |
-| `mri-habitat` | Curated subset for habitat clustering |
+| `mri-voxelwise` | Curated subset for habitat clustering |
 | `mri-all-transforms` | Exhaustive — LoG, Wavelet, Square, SquareRoot, Logarithm, Exponential, Gradient, LBP2D, LBP3D |
-| `mri-wholebrain` | Whole-brain voxelwise (firstorder + GLCM + GLRLM) |
+| `mri-voxelwise-wholebrain` | Whole-brain voxelwise (firstorder + GLCM + GLRLM) |
 | `minimal` | Fast sanity checks (shape + 8 first-order stats) |
 
-All presets use `binCount: 32` with `normalize: true` and `normalizeScale: 100` for cross-preset comparability. `mri-habitat` and `mri-wholebrain` include `voxelSetting` blocks for voxelwise extraction.
+All presets use `binCount: 32` with `normalize: true` and `normalizeScale: 100` for cross-preset comparability. `mri-voxelwise` and `mri-voxelwise-wholebrain` include `voxelSetting` blocks for voxelwise extraction.
 
 ---
 

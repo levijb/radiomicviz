@@ -139,9 +139,9 @@ Built-in extraction configurations. Use `show_preset("name")` to inspect the ful
 | `mri-default` | Balanced starting point | Original | All (shape, firstorder, GLCM, GLRLM, GLSZM, GLDM) |
 | `mri-texture` | Texture features only | Original | GLCM, GLRLM, GLSZM, GLDM, NGTDM |
 | `mri-firstorder` | Shape + first-order stats | Original | Shape, firstorder |
-| `mri-habitat` | Habitat clustering workflows (voxelSetting included) | Original | Curated first-order + texture subset |
+| `mri-voxelwise` | Habitat clustering workflows (voxelSetting included) | Original | Curated first-order + texture subset |
 | `mri-all-transforms` | Exhaustive (thousands of features) | Original, LoG, Wavelet, Square, SquareRoot, Logarithm, Exponential, Gradient, LBP2D, LBP3D | All |
-| `mri-wholebrain` | Whole-brain voxelwise (voxelSetting included) | Original | firstorder (10) + GLCM (7) + GLRLM (4) |
+| `mri-voxelwise-wholebrain` | Whole-brain voxelwise (voxelSetting included) | Original | firstorder (10) + GLCM (7) + GLRLM (4) |
 | `minimal` | Fast sanity checks | Original | Shape + 8 first-order stats |
 
 ### Standardized Settings
@@ -181,24 +181,66 @@ result = extract("t1.nii.gz", "mask.nii.gz",
                  overrides={"binWidth": 50, "label": 2})
 ```
 
+### Voxelwise Extraction
+
+In voxelwise mode, PyRadiomics slides a kernel across every voxel inside the mask and
+computes features at each position, producing a 3D feature map per feature rather than
+a single summary value per ROI. Use this for spatial heterogeneity analysis — mapping
+texture variation across a tract or identifying habitat subregions within a tumor.
+
+**Which preset to use:**
+
+| Use case | Preset |
+|---|---|
+| ROI extraction (one scalar per feature per ROI) | `mri-default`, `mri-texture`, `mri-firstorder`, `mri-all-transforms`, `minimal` |
+| Voxelwise on a single ROI (one tract, one lesion) | `mri-voxelwise` |
+| Voxelwise over the whole brain with a parcellation mask | `mri-voxelwise-wholebrain` |
+
+**`brain_mode`** (voxelwise only, controls how multi-label masks are handled):
+
+| Value | Behavior |
+|---|---|
+| `"whole"` | Binarizes the mask (all nonzero → 1), extracts once over the full brain. Fast, loses region identity. |
+| `"per-region"` | Extracts each label separately. Accurate but slow with many labels. |
+| `"hybrid"` | Binarizes and extracts once, stores the original label map for post-hoc analysis via `result.features_by_region(label)`. |
+
+**Single ROI (e.g., one white-matter tract):**
+
+```bash
+radiomicviz extract -i t1.nii.gz -m CST_L.nii.gz --preset mri-voxelwise --mode voxelwise -o features.csv
+```
+
+```python
+result = extract("t1.nii.gz", "CST_L.nii.gz", preset="mri-voxelwise", mode="voxelwise")
+result.to_4d_nifti("feature_maps.nii.gz")
+```
+
+**Whole-brain parcellation:**
+
+```python
+result = extract("t1.nii.gz", "parcellation.nii.gz",
+                 preset="mri-voxelwise-wholebrain",
+                 mode="voxelwise", brain_mode="hybrid")
+```
+
 ### Whole-brain voxelwise extraction
 
 ```python
 # Strategy 1: One binarized whole-brain mask
 result = extract("t1.nii.gz", "samseg.nii.gz",
-                 preset="mri-wholebrain",
+                 preset="mri-voxelwise-wholebrain",
                  mode="voxelwise",
                  brain_mode="whole")
 
 # Strategy 2: Per-region extraction
 result = extract("t1.nii.gz", "samseg.nii.gz",
-                 preset="mri-wholebrain",
+                 preset="mri-voxelwise-wholebrain",
                  mode="voxelwise",
                  brain_mode="per-region")
 
 # Strategy 3: Hybrid — extract whole-brain, analyze per-region later
 result = extract("t1.nii.gz", "samseg.nii.gz",
-                 preset="mri-wholebrain",
+                 preset="mri-voxelwise-wholebrain",
                  mode="voxelwise",
                  brain_mode="hybrid")
 
@@ -315,7 +357,7 @@ pytest tests/test_roi_extraction.py tests/test_habitat_extraction.py tests/test_
 | `tests/test_config.py` | Preset loading and config resolution |
 | `tests/test_extract.py` | Core extraction, voxelwise brain modes, basic batch |
 | `tests/test_roi_extraction.py` | ROI extraction with mri-default/texture/firstorder; CSV and NIfTI export |
-| `tests/test_habitat_extraction.py` | mri-habitat preset; curated feature count; clustering-readiness |
+| `tests/test_habitat_extraction.py` | mri-voxelwise preset; curated feature count; clustering-readiness |
 | `tests/test_batch_extraction.py` | batch_extract(): error isolation, parallel runs, combined CSV, manifest |
 
 See [TESTING.md](TESTING.md) for full details on prerequisites, individual test selection, and reading failures.
