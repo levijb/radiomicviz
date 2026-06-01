@@ -227,6 +227,7 @@ def extract(
         import radiomics
         from radiomics.featureextractor import RadiomicsFeatureExtractor
 
+        _apply_geometry_tolerance(resolved_config)
         extractor = RadiomicsFeatureExtractor(resolved_config)
 
         # -- Determine labels to extract -----------------------------------
@@ -440,6 +441,37 @@ def _binarize_mask(mask_path: Path, tmp_dir: Optional[Path] = None) -> Path:
         mask_path.name, out_path.name, int(binary.sum()),
     )
     return out_path
+
+
+def _apply_geometry_tolerance(config: dict[str, Any]) -> None:
+    """Apply geometryTolerance to SimpleITK and remove it from the config dict.
+
+    PyRadiomics calls SetGlobalDefaultCoordinateTolerance internally when this
+    setting is present, but the call fails with SimpleITK >= 2.3 due to a SWIG
+    static-method binding change. We call it ourselves with error handling and
+    remove it from the config so PyRadiomics never sees it.
+    """
+    settings = config.get("setting", {})
+    if "geometryTolerance" not in settings:
+        return
+    tol = settings.pop("geometryTolerance")
+    try:
+        import SimpleITK as sitk
+        sitk.ProcessObject.SetGlobalDefaultCoordinateTolerance(float(tol))
+    except Exception as exc:
+        logger.warning(
+            "geometryTolerance=%s could not be applied (SimpleITK %s): %s. "
+            "Install SimpleITK==2.2.1 for full compatibility.",
+            tol, _sitk_version(), exc,
+        )
+
+
+def _sitk_version() -> str:
+    try:
+        import SimpleITK as sitk
+        return sitk.__version__
+    except Exception:
+        return "unknown"
 
 
 def _sort_feature_columns(df: pd.DataFrame) -> pd.DataFrame:

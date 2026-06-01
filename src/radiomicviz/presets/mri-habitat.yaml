@@ -1,7 +1,9 @@
+# radiomicviz preset: mri-habitat
+# Curated first-order + texture subset for habitat clustering workflows.
+# Designed for intra-tumor heterogeneity analysis. No shape features (not
+# meaningful in voxelwise / sliding-window mode). Uses binCount=64 for finer
+# intensity discretization typical in habitat analysis.
 
-imageType:
-  Original: {}
- 
 setting:
   binCount: 64
   label: 1
@@ -9,6 +11,21 @@ setting:
   interpolator: 'sitkBSpline'
   resampledPixelSpacing: null
 
+imageType:
+  Original: {}
+
+featureClass:
+  firstorder:
+  glcm:
+    - 'Autocorrelation'
+    - 'Contrast'
+    - 'Correlation'
+    - 'DifferenceEntropy'
+    - 'JointEnergy'
+    - 'JointEntropy'
+    - 'SumEntropy'
+    - 'SumSquares'
+  glrlm:
 
 voxelSetting:
   kernelRadius: 1

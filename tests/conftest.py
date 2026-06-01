@@ -144,6 +144,25 @@ def nan_image(tmp_data_dir, synthetic_image):
 
 
 @pytest.fixture(scope="session")
+def habitat_mask(tmp_data_dir, synthetic_image):
+    """
+    Single-label binary mask for habitat extraction tests.
+
+    10x10x8 = 800 voxels placed where the gradient image has meaningful variance
+    (x=5:15 spans 26–74 on the intensity gradient, plus per-voxel noise).
+    Large enough that GLCM/GLRLM features compute without collapsing to NaN.
+    """
+    img = nib.load(str(synthetic_image))
+    shape = img.shape[:3]
+    mask = np.zeros(shape, dtype=np.int16)
+    mask[5:15, 4:14, 4:12] = 1  # 10×10×8 = 800 voxels in a high-variance region
+    nii = nib.Nifti1Image(mask, img.affine)
+    path = tmp_data_dir / "test_mask_habitat.nii.gz"
+    nib.save(nii, str(path))
+    return path
+
+
+@pytest.fixture(scope="session")
 def subjects_csv(tmp_data_dir, synthetic_image, synthetic_mask_single, synthetic_mask_multi):
     """A small CSV for batch testing with 3 subjects."""
     df = pd.DataFrame({
@@ -170,5 +189,28 @@ def subjects_csv_with_bad(tmp_data_dir, synthetic_image, synthetic_mask_single, 
         "mask_path": [str(synthetic_mask_single), str(empty_mask)],
     })
     path = tmp_data_dir / "test_cohort_with_bad.csv"
+    df.to_csv(path, index=False)
+    return path
+
+
+@pytest.fixture(scope="session")
+def subjects_csv_three_with_bad(
+    tmp_data_dir, synthetic_image, synthetic_mask_single, empty_mask
+):
+    """3-subject CSV where 2 succeed and 1 fails (empty mask).
+
+    Needed by test_batch_extraction to verify error isolation leaves
+    the two good subjects intact.
+    """
+    df = pd.DataFrame({
+        "subject_id": ["alpha", "beta", "gamma"],
+        "t1_path": [str(synthetic_image)] * 3,
+        "mask_path": [
+            str(synthetic_mask_single),
+            str(empty_mask),
+            str(synthetic_mask_single),
+        ],
+    })
+    path = tmp_data_dir / "test_cohort_three_with_bad.csv"
     df.to_csv(path, index=False)
     return path

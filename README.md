@@ -265,6 +265,10 @@ ruff check src/           # lint
 mypy src/radiomicviz/     # type check
 ```
 
+### Running the tests
+
+See [TESTING.md](TESTING.md) for full instructions — prerequisites, how to run individual files, and how to read failures.
+
 ## License
 
 MIT

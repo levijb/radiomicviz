@@ -224,7 +224,8 @@ def batch_extract(
     if output_dir:
         _save_batch_outputs(
             results, failures, output_dir, subjects_dir,
-            subjects_csv, total_time, save_maps=save_maps, brain_mode=brain_mode,
+            subjects_csv, total_time, save_maps=save_maps,
+            brain_mode=brain_mode, preset=preset,
         )
 
     # -- Summary -----------------------------------------------------------
@@ -306,6 +307,7 @@ def _save_batch_outputs(
     total_time: float,
     save_maps: bool = False,
     brain_mode: Optional[str] = None,
+    preset: Optional[str] = None,
 ) -> None:
     """Save combined CSV, per-subject CSVs, and manifest."""
 
@@ -366,6 +368,7 @@ def _save_batch_outputs(
         "radiomicviz_version": __version__,
         "timestamp": datetime.now().isoformat(),
         "subjects_csv": str(subjects_csv),
+        "preset": preset,
         "total_rows": len(results) + len(failures),
         "succeeded_rows": len(results),
         "failed_rows": len(failures),

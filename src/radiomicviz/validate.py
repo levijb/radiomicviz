@@ -192,6 +192,7 @@ def validate_inputs(
             f"Image shape {img_shape[:3]} ≠ mask shape {mask_shape[:3]}. "
             f"Resample one to match the other before extraction.",
         )
+        return report  # per-voxel checks below require matching shapes
 
     # -- 5. Affine match ----------------------------------------------------
     img_affine = img_nii.affine
