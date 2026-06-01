@@ -256,18 +256,52 @@ radiomicviz generate-slurm \
 
 Generated scripts handle conda activation, logging, and error reporting. The `array` strategy also generates a `merge_results.sh` script to combine outputs after all tasks complete.
 
+## Running the Tests
+
+### Prerequisites
+
+```bash
+# Core suite (no real data needed — uses synthetic NIfTI fixtures)
+pip install -e ".[dev]"
+
+# sklearn-dependent habitat clustering test (optional)
+pip install -e ".[analysis]"
+```
+
+Extraction tests also require pyradiomics installed per the pinned-version steps above. If it isn't installed, the suite skips those tests cleanly.
+
+### Run everything
+
+```bash
+pytest
+```
+
+### Run the extraction test files only
+
+```bash
+pytest tests/test_roi_extraction.py tests/test_habitat_extraction.py tests/test_batch_extraction.py -v
+```
+
+### What's covered
+
+| File | What it tests |
+|---|---|
+| `tests/test_validate.py` | Input validation: shape, affine, empty mask, float values |
+| `tests/test_config.py` | Preset loading and config resolution |
+| `tests/test_extract.py` | Core extraction, voxelwise brain modes, basic batch |
+| `tests/test_roi_extraction.py` | ROI extraction with mri-default/texture/firstorder; CSV and NIfTI export |
+| `tests/test_habitat_extraction.py` | mri-habitat preset; curated feature count; clustering-readiness |
+| `tests/test_batch_extraction.py` | batch_extract(): error isolation, parallel runs, combined CSV, manifest |
+
+See [TESTING.md](TESTING.md) for full details on prerequisites, individual test selection, and reading failures.
+
 ## Development
 
 ```bash
 pip install -e ".[dev]"
-pytest                    # run tests
 ruff check src/           # lint
 mypy src/radiomicviz/     # type check
 ```
-
-### Running the tests
-
-See [TESTING.md](TESTING.md) for full instructions — prerequisites, how to run individual files, and how to read failures.
 
 ## License
 
