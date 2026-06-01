@@ -23,7 +23,21 @@
       "PowerShell(Get-Command *)",
       "PowerShell(& \"$env:USERPROFILE\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\" -m pytest \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\tests\\\\test_config.py\" -v -k \"wholebrain or list_presets\" 2>&1)",
       "PowerShell(& \"$env:USERPROFILE\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\" -m pytest \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\tests\\\\\" -v 2>&1)",
-      "PowerShell(& \"$env:USERPROFILE\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\" -m pytest \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\tests\\\\\" -v --tb=short 2>&1 | Out-String)"
+      "PowerShell(& \"$env:USERPROFILE\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\" -m pytest \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\tests\\\\\" -v --tb=short 2>&1 | Out-String)",
+      "Bash(conda info *)",
+      "PowerShell(conda info *)",
+      "PowerShell(C:\\\\Users\\\\levij\\\\anaconda3\\\\Scripts\\\\conda.exe env list)",
+      "PowerShell(C:\\\\Users\\\\levij\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe -c \"import radiomics; print\\('pyradiomics:', radiomics.__version__\\); import SimpleITK; print\\('SimpleITK:', SimpleITK.__version__\\)\")",
+      "PowerShell(C:\\\\Users\\\\levij\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\_baseline.py\" 2>&1)",
+      "PowerShell(& \"C:\\\\Users\\\\levij\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\" \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\_baseline.py\" 2>&1)",
+      "Bash(/c/Users/levij/anaconda3/envs/radiomicviz/python.exe *)",
+      "Bash(cmd.exe *)",
+      "PowerShell($py = \"C:\\\\Users\\\\levij\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\"; Write-Host \"Exists: $\\(Test-Path $py\\)\"; & $py --version)",
+      "PowerShell($py = \"C:\\\\Users\\\\levij\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\"; $script = \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\_baseline.py\"; $result = & $py $script 2>&1; $result | Out-String)",
+      "PowerShell($py = \"C:\\\\Users\\\\levij\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\"; $out = & $py -c \"print\\('hello'\\)\" 2>&1; Write-Host \"Exit: $LASTEXITCODE\"; Write-Host \"Out: $out\")",
+      "PowerShell(C:\\\\Users\\\\levij\\\\anaconda3\\\\Scripts\\\\conda.exe run -n radiomicviz python --version)",
+      "PowerShell(C:\\\\Users\\\\levij\\\\anaconda3\\\\Scripts\\\\conda.exe run -n radiomicviz python -c \"import radiomics; print\\('pyradiomics:', radiomics.__version__\\)\")",
+      "PowerShell(C:\\\\Users\\\\levij\\\\anaconda3\\\\Scripts\\\\conda.exe run -n radiomicviz python \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\_baseline.py\" 2>&1 | Out-String)"
     ]
   }
 }
