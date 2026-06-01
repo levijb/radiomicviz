@@ -37,7 +37,10 @@
       "PowerShell($py = \"C:\\\\Users\\\\levij\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\"; $out = & $py -c \"print\\('hello'\\)\" 2>&1; Write-Host \"Exit: $LASTEXITCODE\"; Write-Host \"Out: $out\")",
       "PowerShell(C:\\\\Users\\\\levij\\\\anaconda3\\\\Scripts\\\\conda.exe run -n radiomicviz python --version)",
       "PowerShell(C:\\\\Users\\\\levij\\\\anaconda3\\\\Scripts\\\\conda.exe run -n radiomicviz python -c \"import radiomics; print\\('pyradiomics:', radiomics.__version__\\)\")",
-      "PowerShell(C:\\\\Users\\\\levij\\\\anaconda3\\\\Scripts\\\\conda.exe run -n radiomicviz python \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\_baseline.py\" 2>&1 | Out-String)"
+      "PowerShell(C:\\\\Users\\\\levij\\\\anaconda3\\\\Scripts\\\\conda.exe run -n radiomicviz python \"C:\\\\Users\\\\levij\\\\Documents\\\\GitHub\\\\radiomicviz\\\\_baseline.py\" 2>&1 | Out-String)",
+      "PowerShell(conda run *)",
+      "PowerShell(python -m pytest tests/ -v --tb=short 2>&1)",
+      "PowerShell(& \"C:\\\\Users\\\\levij\\\\anaconda3\\\\envs\\\\radiomicviz\\\\python.exe\" -m pytest tests/ -v --tb=short 2>&1)"
     ]
   }
 }

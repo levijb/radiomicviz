@@ -163,7 +163,7 @@ Each subject gets its own subfolder under `per_subject/`.
 | `mri-wholebrain` | Whole-brain voxelwise (firstorder + GLCM + GLRLM) |
 | `minimal` | Fast sanity checks (shape + 8 first-order stats) |
 
-Most presets use `binCount: 32` with normalization. `mri-all-transforms` uses `binWidth: 25` without normalization (matching the standard PyRadiomics example config).
+All presets use `binCount: 32` with `normalize: true` and `normalizeScale: 100` for cross-preset comparability. `mri-habitat` and `mri-wholebrain` include `voxelSetting` blocks for voxelwise extraction.
 
 ---
 

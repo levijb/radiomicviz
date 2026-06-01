@@ -139,12 +139,35 @@ Built-in extraction configurations. Use `show_preset("name")` to inspect the ful
 | `mri-default` | Balanced starting point | Original | All (shape, firstorder, GLCM, GLRLM, GLSZM, GLDM) |
 | `mri-texture` | Texture features only | Original | GLCM, GLRLM, GLSZM, GLDM, NGTDM |
 | `mri-firstorder` | Shape + first-order stats | Original | Shape, firstorder |
-| `mri-habitat` | Habitat clustering workflows | Original | Curated first-order + texture subset |
+| `mri-habitat` | Habitat clustering workflows (voxelSetting included) | Original | Curated first-order + texture subset |
 | `mri-all-transforms` | Exhaustive (thousands of features) | Original, LoG, Wavelet, Square, SquareRoot, Logarithm, Exponential, Gradient, LBP2D, LBP3D | All |
-| `mri-wholebrain` | Whole-brain voxelwise | Original | firstorder (10) + GLCM (7) + GLRLM (4) |
+| `mri-wholebrain` | Whole-brain voxelwise (voxelSetting included) | Original | firstorder (10) + GLCM (7) + GLRLM (4) |
 | `minimal` | Fast sanity checks | Original | Shape + 8 first-order stats |
 
-All presets use `binCount: 32` and normalization except `mri-all-transforms` (which uses `binWidth: 25` with no normalization, matching the standard PyRadiomics example config).
+### Standardized Settings
+
+All presets share a common discretization pipeline so that features extracted with
+any preset are directly comparable:
+
+- **Normalization:** enabled (`normalize: true`, `normalizeScale: 100`) — required for MRI where intensity units are arbitrary
+- **Binning:** `binCount: 32` (adaptive bin count, not fixed bin width)
+- **Intensity shift:** `voxelArrayShift: 300` (ensures positive values for texture computation)
+- **Resampling:** disabled (`resampledPixelSpacing: null`) — assumes data is already in consistent voxel space
+- **Interpolation:** B-spline (`sitkBSpline`)
+
+Presets differ only in which feature classes and image transforms they enable,
+not in how the image is preprocessed. This means you can run `mri-firstorder`
+on a subject, then later run `mri-texture` on the same subject, and safely
+combine the results.
+
+If your data has inconsistent voxel sizes across subjects, add resampling via
+config override:
+
+```python
+result = extract("t1.nii.gz", "mask.nii.gz",
+                 preset="mri-default",
+                 overrides={"setting": {"resampledPixelSpacing": [1, 1, 1]}})
+```
 
 ### Custom configs
 

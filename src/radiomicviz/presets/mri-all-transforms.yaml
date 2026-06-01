@@ -3,17 +3,19 @@
 # Logarithm, Exponential, Gradient, LBP2D, LBP3D. Generates thousands of features.
 # Use when you want exhaustive feature sets for feature selection / ML pipelines.
 #
+# Uses the same normalization and binning as all other presets (binCount=32,
+# normalize=true) so features are directly comparable across presets.
+#
 # WARNING: This is slow. Expect 5-30 min per subject depending on ROI size.
 # Consider using the 'chunked' or 'array' SLURM strategy for large cohorts.
 
 setting:
-  binWidth: 25
+  binCount: 32
   geometryTolerance: 1e-4
   label: 1
   interpolator: 'sitkBSpline'
-  resampledPixelSpacing: [1, 1, 1]
-  weightingNorm: null
-  normalize: false
+  resampledPixelSpacing: null
+  normalize: true
   normalizeScale: 100
   voxelArrayShift: 300
   preCrop: true

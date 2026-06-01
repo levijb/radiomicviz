@@ -358,7 +358,7 @@ def _save_batch_outputs(
     # Error log
     if failures:
         errors_path = output_dir / "errors.log"
-        with open(errors_path, "w") as f:
+        with open(errors_path, "w", encoding="utf-8") as f:
             for fail in failures:
                 f.write(f"{fail['subject_id']}\t{fail['error']}\n")
         logger.info("Error log saved to %s", errors_path)
