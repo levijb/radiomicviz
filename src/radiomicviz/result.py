@@ -29,6 +29,46 @@ import pandas as pd
 logger = logging.getLogger("radiomicviz.result")
 
 
+def _expand_to_full_shape(
+    feat_img: Any,
+    arr: np.ndarray,
+    full_shape: tuple,
+    nib_affine: np.ndarray,
+) -> np.ndarray:
+    """Place a spatially cropped SimpleITK feature map into a full-size numpy array.
+
+    PyRadiomics voxelwise extraction always crops the output to the mask bounding
+    box. This function uses the feature image's LPS origin to compute the voxel
+    offset and reconstructs the full-size array (NaN outside the cropped region).
+
+    Assumes standard neuroimaging LPS↔RAS convention (SimpleITK LPS, nibabel RAS).
+    """
+    # SimpleITK origin is in LPS physical coordinates. Nibabel affine maps
+    # voxel → RAS. Convert LPS → RAS by negating x and y (standard convention).
+    origin_lps = np.array(feat_img.GetOrigin())
+    origin_ras = origin_lps * np.array([-1.0, -1.0, 1.0])
+
+    inv_rot = np.linalg.inv(nib_affine[:3, :3])
+    vox_float = inv_rot @ (origin_ras - nib_affine[:3, 3])
+    offset = np.round(vox_float).astype(int)
+
+    full_arr = np.full(full_shape, np.nan, dtype=np.float64)
+    dst_start = np.maximum(0, offset)
+    src_start = np.maximum(0, -offset)
+    end = np.minimum(np.array(full_shape), offset + np.array(arr.shape))
+
+    if np.any(end <= dst_start):
+        return full_arr  # feature map doesn't overlap with full image
+
+    dst = tuple(slice(int(dst_start[i]), int(end[i])) for i in range(3))
+    src = tuple(
+        slice(int(src_start[i]), int(src_start[i] + end[i] - dst_start[i]))
+        for i in range(3)
+    )
+    full_arr[dst] = arr[src]
+    return full_arr
+
+
 @dataclass
 class ExtractionMetadata:
     """Provenance information for an extraction run."""
@@ -322,6 +362,8 @@ class ExtractionResult:
         import SimpleITK as sitk
 
         region_mask = (self.original_label_map == region_label)
+        full_shape = self.original_label_map.shape  # (x, y, z) nibabel convention
+        nib_affine = self.mask_nii.affine if self.mask_nii is not None else None
 
         data: dict[str, np.ndarray] = {}
         for _label_key, label_maps in self.feature_maps.items():
@@ -331,6 +373,21 @@ class ExtractionResult:
                     arr = sitk.GetArrayFromImage(feat_img).T
                 else:
                     arr = np.asarray(feat_img)
+
+                if arr.shape != full_shape:
+                    # PyRadiomics voxelwise always crops to the mask bounding box.
+                    # Reconstruct the full-size array by computing the crop offset
+                    # from the feature map's spatial metadata.
+                    if isinstance(feat_img, sitk.Image) and nib_affine is not None:
+                        arr = _expand_to_full_shape(feat_img, arr, full_shape, nib_affine)
+                    else:
+                        logger.warning(
+                            "Cannot align feature '%s' to original space "
+                            "(shapes %s vs %s); skipping.",
+                            feat_name, arr.shape, full_shape,
+                        )
+                        continue
+
                 data[feat_name] = arr[region_mask]
 
         return pd.DataFrame(data)
@@ -380,6 +437,10 @@ class ExtractionResult:
             f"  Features: {self.n_features}",
             f"  ROIs: {self.n_rois}",
         ]
+        if self.metadata.subject_id:
+            lines.append(f"  Subject: {self.metadata.subject_id}")
+        if self.metadata.modality:
+            lines.append(f"  Modality: {self.metadata.modality}")
         if self.metadata.extraction_time_seconds:
             lines.append(f"  Time: {self.metadata.extraction_time_seconds:.1f}s")
         if self.metadata.brain_mode:

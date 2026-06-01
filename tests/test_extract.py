@@ -88,18 +88,25 @@ class TestExtract:
             extract(synthetic_image, empty_mask, preset="minimal")
 
     def test_skip_validation(self, mismatched_image, synthetic_mask_single):
-        """With skip_validation, extraction may fail at PyRadiomics level."""
+        """With skip_validation=True our validation layer is bypassed entirely.
+
+        PyRadiomics may succeed (correctMask=True handles shape mismatches) or
+        fail with its own error — either outcome is acceptable here. The key
+        invariant is that our ValueError("Validation failed") is never raised.
+        """
         from radiomicviz import extract
 
-        # Should not raise ValueError from validation
-        # (but may raise from PyRadiomics due to shape mismatch)
-        with pytest.raises(Exception):
+        try:
             extract(
                 mismatched_image,
                 synthetic_mask_single,
                 preset="minimal",
                 skip_validation=True,
             )
+        except ValueError as exc:
+            pytest.fail(f"Validation ran despite skip_validation=True: {exc}")
+        except Exception:
+            pass  # PyRadiomics-level failure is acceptable
 
     def test_result_summary(self, synthetic_image, synthetic_mask_single):
         from radiomicviz import extract
