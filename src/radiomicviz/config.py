@@ -7,7 +7,7 @@ Users can use presets directly, inspect them, or provide custom YAML configs.
 Usage:
     >>> from radiomicviz import list_presets, show_preset
     >>> list_presets()
-    ['mri-default', 'mri-texture', 'mri-firstorder', 'mri-habitat',
+    ['mri-default', 'mri-texture', 'mri-firstorder', 'mri-voxelwise', 'mri-voxelwise-wholebrain',
      'mri-all-transforms', 'minimal']
     >>> show_preset("mri-texture")  # prints the YAML
 """
