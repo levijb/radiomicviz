@@ -2,7 +2,7 @@
 
 Interactive 3D radiomics extraction, visualization, and analysis for neuroimaging.
 
-RadiomicViz wraps PyRadiomics with strict input validation, built-in presets, structured output, and cluster submission tooling — replacing the bespoke scripts you rewrite for every project.
+RadiomicViz wraps PyRadiomics with strict input validation, built-in presets, structured output, and cluster submission tooling.
 
 ## Installation
 
