@@ -298,12 +298,30 @@ class ExtractionResult:
 
         # Flatten {label_key: {feat: sitk.Image}} into a stable ordered list.
         # sitk.GetArrayFromImage returns (z, y, x); transpose to (x, y, z) for nibabel.
+        #
+        # PyRadiomics voxelwise extraction (preCrop: true) crops each feature map
+        # to the mask bounding box, so the cropped arrays are smaller than the full
+        # volume. Pad each map back to the mask's full shape using its LPS origin so
+        # the saved NIfTI's affine (the full-volume mask affine) is spatially correct.
+        full_shape = self.mask_nii.shape[:3]
+        nib_affine = self.mask_nii.affine
+
         ordered_names: list[str] = []
         ordered_arrays: list[np.ndarray] = []
         for label_key in sorted(self.feature_maps):
             for feat_name in sorted(self.feature_maps[label_key]):
                 val = self.feature_maps[label_key][feat_name]
                 arr = sitk.GetArrayFromImage(val).T if isinstance(val, sitk.Image) else np.asarray(val)
+                if arr.shape != full_shape:
+                    if isinstance(val, sitk.Image):
+                        arr = _expand_to_full_shape(val, arr, full_shape, nib_affine)
+                    else:
+                        logger.warning(
+                            "Cannot align feature '%s' to full volume "
+                            "(shapes %s vs %s); skipping.",
+                            feat_name, arr.shape, full_shape,
+                        )
+                        continue
                 ordered_names.append(f"{label_key}_{feat_name}")
                 ordered_arrays.append(arr)
 
