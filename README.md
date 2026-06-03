@@ -215,6 +215,35 @@ result = extract("t1.nii.gz", "CST_L.nii.gz", preset="mri-voxelwise", mode="voxe
 result.to_4d_nifti("feature_maps.nii.gz")
 ```
 
+**Output options:**
+
+- **4D NIfTI** (default in voxelwise mode): all feature maps stacked into a single
+  `(x, y, z, n_features)` NIfTI file, with a sidecar JSON listing the feature names.
+  Good for viewing with the RadiomicViz viewer (`--feature-4d`) and for downstream
+  analysis that loads the full stack at once.
+- **Individual `.nrrd` files** (`--save-maps`): one file per feature per ROI label,
+  saved in a subdirectory named by the ROI (`--roi-name`, or `label{N}` as a fallback).
+  Good for selective loading of specific features, multi-region viewer mode
+  (`--subject-dir`), and as input to habitat clustering.
+
+```bash
+# Single subject: get both 4D NIfTI and individual .nrrd files
+radiomicviz extract \
+  -i t1.nii.gz -m CST_L.nii.gz \
+  --preset mri-voxelwise --mode voxelwise \
+  --save-maps --roi-name CST_L \
+  -o features.csv
+```
+
+```bash
+# Batch: save .nrrd maps for all subjects
+radiomicviz batch-extract \
+  -s cohort.csv --image-col Image --mask-col Mask \
+  --preset mri-voxelwise --mode voxelwise \
+  --save-maps --roi-name-col mask_name \
+  -o output/ -n 4
+```
+
 **Whole-brain parcellation:**
 
 ```python

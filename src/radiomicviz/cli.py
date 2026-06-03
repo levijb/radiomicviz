@@ -65,6 +65,9 @@ def generate_csv(study_folder, output_csv_name):
               help="Output CSV path (default: features.csv)")
 @click.option("--output-4d", default=None, type=click.Path(),
               help="Output path for 4D NIfTI of voxelwise feature maps (voxelwise mode only)")
+@click.option("--save-maps", is_flag=True,
+              help="Save individual .nrrd feature maps in a per-ROI subdirectory "
+                   "(requires --mode voxelwise)")
 @click.option("--mode", type=click.Choice(["roi", "voxelwise"]), default="roi",
               help="Extraction mode")
 @click.option("--brain-mode",
@@ -83,12 +86,17 @@ def generate_csv(study_folder, output_csv_name):
 @click.option("--subject-id", default=None, help="Subject identifier for metadata")
 @click.option("--skip-validation", is_flag=True, help="Skip input validation")
 @click.option("-v", "--verbose", is_flag=True, help="Verbose output")
-def extract(image, mask, preset, config, output, output_4d, mode, brain_mode,
+def extract(image, mask, preset, config, output, output_4d, save_maps, mode, brain_mode,
             label, roi_name, modality, subject_id, skip_validation, verbose):
     """Extract radiomic features from a single image-mask pair."""
     _setup_logging(verbose)
 
     from radiomicviz import extract as _extract
+
+    if save_maps and mode != "voxelwise":
+        click.secho("Warning: --save-maps ignored (requires --mode voxelwise)",
+                    fg="yellow", err=True)
+        save_maps = False
 
     retain_mask = (mode == "voxelwise")
 
@@ -119,6 +127,13 @@ def extract(image, mask, preset, config, output, output_4d, mode, brain_mode,
                 nifti_path = str(Path(output).parent / ("_".join(parts) + "_features4d.nii.gz"))
             result.to_4d_nifti(nifti_path)
             click.echo(f"4D feature maps saved to {nifti_path}")
+
+            if save_maps:
+                # to_nrrd() creates one subdirectory per ROI label (named by
+                # --roi-name or label{N}) under the output directory.
+                nrrd_dir = Path(output).parent
+                saved = result.to_nrrd(nrrd_dir)
+                click.echo(f"Saved {len(saved)} .nrrd feature maps under {nrrd_dir}")
 
     except Exception as exc:
         click.secho(f"Error: {exc}", fg="red", err=True)

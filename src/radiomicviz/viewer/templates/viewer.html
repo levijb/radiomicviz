@@ -882,7 +882,47 @@ function onOverlayOpacity(el)  {
 }
 
 // ── 4D ───────────────────────────────────────────────────────
-function onFeature4DChange(el)  { if (vol4dId !== null) nv.setFrame4D(vol4dId, parseInt(el.value,10)); }
+function onFeature4DChange(el) {
+  if (vol4dId === null) return;
+  nv.setFrame4D(vol4dId, parseInt(el.value, 10));
+  // setFrame4D switches the frame but keeps the previous feature's display
+  // range (cal_min/cal_max), so a feature with a different value range maps to
+  // a single flat color. Recompute the range from the new frame's voxels.
+  reset4DRange();
+}
+
+// Reset the 4D overlay's display range to match the currently selected frame.
+// Stacked feature maps span very different scales, so the whole-volume range is
+// not usable per-frame; compute min/max over just this frame's data.
+function reset4DRange() {
+  const idx = nv.volumes.findIndex(v => v.id === vol4dId);
+  if (idx < 0) return;
+  const vol = nv.volumes[idx];
+  try {
+    const nVox3D = vol.dims[1] * vol.dims[2] * vol.dims[3];
+    const frame  = vol.frame4D || 0;
+    const base   = frame * nVox3D;
+    const img    = vol.img;
+    let mn = Infinity, mx = -Infinity;
+    for (let i = 0; i < nVox3D; i++) {
+      const v = img[base + i];
+      if (!isFinite(v)) continue;          // skip NaN padding outside the ROI
+      if (v < mn) mn = v;
+      if (v > mx) mx = v;
+    }
+    if (isFinite(mn) && isFinite(mx) && mx > mn) {
+      vol.cal_min = mn;
+      vol.cal_max = mx;
+    } else {
+      vol.cal_min = vol.global_min;
+      vol.cal_max = vol.global_max;
+    }
+  } catch (e) {
+    vol.cal_min = vol.global_min;
+    vol.cal_max = vol.global_max;
+  }
+  nv.updateGLVolume();
+}
 function onColormap4DChange(el) { map4dColormap = el.value; reloadVolumes(); }
 function onMap4DOpacity(el)     {
   map4dOpacity = parseFloat(el.value);

@@ -346,6 +346,44 @@ class ExtractionResult:
         logger.info("Saved 4D NIfTI (%d features) to %s", len(ordered_names), path)
         return path
 
+    def to_nrrd(self, output_dir: Union[str, Path]) -> list[Path]:
+        """
+        Save each voxelwise feature map as an individual ``.nrrd`` file.
+
+        Only available for voxelwise results. feature_maps must be the nested
+        ``{label_key: {feat_name: sitk.Image}}`` structure produced by
+        extract(). One subdirectory is created per ROI label (named by the
+        label key, i.e. the ROI name or ``label{N}``), with one ``.nrrd`` file
+        per feature inside it.
+
+        Parameters
+        ----------
+        output_dir : str or Path
+            Directory under which the per-ROI subdirectories are written.
+
+        Returns
+        -------
+        list of Path
+            Paths to the created ``.nrrd`` files.
+        """
+        if not self.is_voxelwise or self.feature_maps is None:
+            raise ValueError("to_nrrd() is only available for voxelwise results.")
+
+        import SimpleITK as sitk
+
+        output_dir = Path(output_dir)
+        paths: list[Path] = []
+        for label_key in sorted(self.feature_maps):
+            label_dir = output_dir / label_key
+            label_dir.mkdir(parents=True, exist_ok=True)
+            for feat_name, img in sorted(self.feature_maps[label_key].items()):
+                out_path = label_dir / f"{feat_name}.nrrd"
+                sitk.WriteImage(img, str(out_path))
+                paths.append(out_path)
+
+        logger.info("Saved %d .nrrd feature maps to %s", len(paths), output_dir)
+        return paths
+
     # -- Hybrid / brain-mode helpers ---------------------------------------
 
     def features_by_region(self, region_label: int) -> pd.DataFrame:
