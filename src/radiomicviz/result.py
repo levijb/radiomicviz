@@ -38,24 +38,68 @@ def _expand_to_full_shape(
     """Place a spatially cropped SimpleITK feature map into a full-size numpy array.
 
     PyRadiomics voxelwise extraction always crops the output to the mask bounding
-    box. This function uses the feature image's LPS origin to compute the voxel
-    offset and reconstructs the full-size array (NaN outside the cropped region).
+    box. This reconstructs the full-size (i, j, k) array (NaN outside the cropped
+    region) using the feature map's *own* geometry — origin, spacing, and
+    direction — so the data is placed both at the correct bounding-box corner and
+    with the correct axis orientation.
+
+    ``arr`` is the feature map already transposed to (i, j, k) SimpleITK index
+    order (i.e. ``sitk.GetArrayFromImage(feat_img).T``). The feature map can carry
+    a direction matrix whose axes are flipped or permuted relative to the mask's
+    nibabel grid; using the origin alone (as a previous version did) places the
+    bounding box correctly but leaves the interior axis-swapped. We derive the
+    signed permutation between the two grids and reorient ``arr`` accordingly
+    before placement. When the axes already align this is a no-op.
 
     Assumes standard neuroimaging LPS↔RAS convention (SimpleITK LPS, nibabel RAS).
     """
-    # SimpleITK origin is in LPS physical coordinates. Nibabel affine maps
-    # voxel → RAS. Convert LPS → RAS by negating x and y (standard convention).
-    origin_lps = np.array(feat_img.GetOrigin())
-    origin_ras = origin_lps * np.array([-1.0, -1.0, 1.0])
+    lps2ras = np.array([-1.0, -1.0, 1.0])
 
-    inv_rot = np.linalg.inv(nib_affine[:3, :3])
-    vox_float = inv_rot @ (origin_ras - nib_affine[:3, 3])
-    offset = np.round(vox_float).astype(int)
+    # Feature map index→physical mapping (SimpleITK LPS), converted to RAS so it
+    # is comparable with the nibabel affine. Columns of ``feat_rot_ras`` give the
+    # RAS displacement of a one-voxel step along each feature index axis.
+    spacing = np.array(feat_img.GetSpacing(), dtype=float)
+    direction = np.array(feat_img.GetDirection(), dtype=float).reshape(3, 3)
+    origin_lps = np.array(feat_img.GetOrigin(), dtype=float)
+    feat_rot_ras = (direction * spacing) * lps2ras[:, None]
+    feat_origin_ras = origin_lps * lps2ras
+
+    mask_rot = nib_affine[:3, :3]
+    mask_origin = nib_affine[:3, 3]
+    inv_mask_rot = np.linalg.inv(mask_rot)
+
+    # ``M[:, f]`` expresses feature index-axis ``f`` in mask index coordinates;
+    # for two axis-aligned grids of equal spacing this is a signed permutation.
+    # ``t`` is the mask-index location of feature voxel (0, 0, 0).
+    M = inv_mask_rot @ feat_rot_ras
+    t = inv_mask_rot @ (feat_origin_ras - mask_origin)
+
+    # Reorient arr's axes from feature order into mask (i, j, k) order.
+    perm = [0, 0, 0]      # perm[mask_axis] = feature_axis
+    signs = [1, 1, 1]
+    for f in range(3):
+        m = int(np.argmax(np.abs(M[:, f])))
+        perm[m] = f
+        signs[m] = 1 if M[m, f] >= 0 else -1
+    arr_m = np.transpose(arr, perm)
+    for m in range(3):
+        if signs[m] < 0:
+            arr_m = np.flip(arr_m, axis=m)
+
+    # The reoriented array's [0, 0, 0] sits at the minimum mask-index corner of
+    # the mapped bounding box. Compute that corner over all 8 box corners.
+    dims = np.array(arr.shape, dtype=float) - 1.0
+    corners = [
+        M @ (dims * np.array(c, dtype=float)) + t
+        for c in ((0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1),
+                  (1, 1, 0), (1, 0, 1), (0, 1, 1), (1, 1, 1))
+    ]
+    offset = np.round(np.min(corners, axis=0)).astype(int)
 
     full_arr = np.full(full_shape, np.nan, dtype=np.float64)
     dst_start = np.maximum(0, offset)
     src_start = np.maximum(0, -offset)
-    end = np.minimum(np.array(full_shape), offset + np.array(arr.shape))
+    end = np.minimum(np.array(full_shape), offset + np.array(arr_m.shape))
 
     if np.any(end <= dst_start):
         return full_arr  # feature map doesn't overlap with full image
@@ -65,7 +109,7 @@ def _expand_to_full_shape(
         slice(int(src_start[i]), int(src_start[i] + end[i] - dst_start[i]))
         for i in range(3)
     )
-    full_arr[dst] = arr[src]
+    full_arr[dst] = arr_m[src]
     return full_arr
 
 

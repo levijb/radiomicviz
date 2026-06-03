@@ -884,44 +884,66 @@ function onOverlayOpacity(el)  {
 // ── 4D ───────────────────────────────────────────────────────
 function onFeature4DChange(el) {
   if (vol4dId === null) return;
-  nv.setFrame4D(vol4dId, parseInt(el.value, 10));
+  const frame = parseInt(el.value, 10);
+  nv.setFrame4D(vol4dId, frame);
   // setFrame4D switches the frame but keeps the previous feature's display
   // range (cal_min/cal_max), so a feature with a different value range maps to
   // a single flat color. Recompute the range from the new frame's voxels.
-  reset4DRange();
+  reset4DRange(frame);
 }
 
 // Reset the 4D overlay's display range to match the currently selected frame.
 // Stacked feature maps span very different scales, so the whole-volume range is
 // not usable per-frame; compute min/max over just this frame's data.
-function reset4DRange() {
+function reset4DRange(frame) {
   const idx = nv.volumes.findIndex(v => v.id === vol4dId);
-  if (idx < 0) return;
+  if (idx < 0) { console.warn("[4D] volume not found for id", vol4dId); return; }
   const vol = nv.volumes[idx];
-  try {
-    const nVox3D = vol.dims[1] * vol.dims[2] * vol.dims[3];
-    const frame  = vol.frame4D || 0;
-    const base   = frame * nVox3D;
-    const img    = vol.img;
+  const img = vol.img;
+  if (frame === undefined) frame = vol.frame4D || 0;
+
+  let applied = false;
+  if (img && img.length) {
+    // Per-frame voxel count: prefer the header dims, else derive from the data
+    // length and the frame count (NiiVue exposes dims on vol.hdr, not vol).
+    const d = vol.dims || (vol.hdr && vol.hdr.dims);
+    let nVox3D = (d && d.length >= 4) ? d[1] * d[2] * d[3] : 0;
+    const nFrames = vol.nFrame4D || (nVox3D ? Math.round(img.length / nVox3D) : 1);
+    if (!nVox3D) nVox3D = Math.floor(img.length / (nFrames || 1));
+
+    const hdr   = vol.hdr || {};
+    const slope = hdr.scl_slope || vol.scl_slope || 1;
+    const inter = hdr.scl_inter || vol.scl_inter || 0;
+    const base  = frame * nVox3D;
+
     let mn = Infinity, mx = -Infinity;
     for (let i = 0; i < nVox3D; i++) {
-      const v = img[base + i];
+      let v = img[base + i];
       if (!isFinite(v)) continue;          // skip NaN padding outside the ROI
+      v = v * slope + inter;               // NiiVue scales display intensities
       if (v < mn) mn = v;
       if (v > mx) mx = v;
     }
     if (isFinite(mn) && isFinite(mx) && mx > mn) {
       vol.cal_min = mn;
       vol.cal_max = mx;
-    } else {
-      vol.cal_min = vol.global_min;
-      vol.cal_max = vol.global_max;
+      applied = true;
+      console.debug(`[4D] frame ${frame} range ${mn.toPrecision(4)} … ${mx.toPrecision(4)}`);
     }
-  } catch (e) {
+  }
+
+  // Fallbacks: NiiVue's own recompute, then the whole-volume range.
+  if (!applied && typeof vol.calMinMax === "function") {
+    try { vol.calMinMax(); applied = true; } catch (e) { /* ignore */ }
+  }
+  if (!applied) {
+    console.warn("[4D] per-frame range unavailable; using global range");
     vol.cal_min = vol.global_min;
     vol.cal_max = vol.global_max;
   }
+
   nv.updateGLVolume();
+  nv.drawScene();
 }
 function onColormap4DChange(el) { map4dColormap = el.value; reloadVolumes(); }
 function onMap4DOpacity(el)     {
