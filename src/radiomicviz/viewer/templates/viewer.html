@@ -229,26 +229,52 @@
       </select>
     </div>
 
-    {% if not manifest.overlays %}
-    <!-- ── Add Overlay ── (always shown unless explicit flat --overlays were passed) -->
+    {% if manifest.feature_4d %}
+    <!-- ── 4D Feature Maps ── -->
+    <div class="section">
+      <div class="section-label">4D Feature Maps</div>
+      <label>Feature</label>
+      <select id="feature4d-select" onchange="onFeature4DChange(this)">
+        {% if manifest.feature_4d_features %}
+          {% for name in manifest.feature_4d_features %}
+          <option value="{{ loop.index0 }}">{{ name }}</option>
+          {% endfor %}
+        {% else %}
+          {% for i in range(manifest.feature_4d_n_frames | default(1)) %}
+          <option value="{{ i }}">Frame {{ i }}</option>
+          {% endfor %}
+        {% endif %}
+      </select>
+      <label>Colormap</label>
+      <select id="colormap4d-select" onchange="onColormap4DChange(this)">
+        <option value="viridis">Viridis</option>
+        <option value="plasma">Plasma</option>
+        <option value="inferno">Inferno</option>
+        <option value="hot">Hot</option>
+        <option value="cool">Cool</option>
+        <option value="winter">Winter</option>
+        <option value="blue2red">Blue-Red</option>
+        <option value="gray">Gray</option>
+      </select>
+      <div class="row">
+        <label>Opacity</label>
+        <input type="range" id="map4d-opacity" min="0" max="1" step="0.05" value="0.7"
+               oninput="onMap4DOpacity(this)">
+        <span class="val" id="map4d-opacity-val">0.70</span>
+      </div>
+    </div>
+
+    {% elif manifest.regions %}
+    <!-- ── Add Overlay ── (regions/NRRD mode from --subject-dir) -->
     <div class="section">
       <div class="section-label">Add Overlay</div>
 
-      {% if manifest.regions %}
       <label>Region</label>
       <select id="region-select" onchange="onRegionChange(this)">
         {% for rname in manifest.regions %}
         <option value="{{ rname }}">{{ rname | replace('_',' ') }}</option>
         {% endfor %}
       </select>
-      {% else %}
-      <label>Region</label>
-      <select id="region-select" onchange="onRegionChange(this)" disabled>
-        <option value="">&#8212; none &#8212;</option>
-      </select>
-      <p class="overlay-hint">No overlay data. Launch with <code>--subject-dir</code>
-         or <code>--overlays</code> to add feature maps.</p>
-      {% endif %}
 
       <label>Feature</label>
       <select id="add-overlay-select">
@@ -278,7 +304,7 @@
       <div id="layers-container"></div>
     </div>
 
-    {% else %}
+    {% elif manifest.overlays %}
     <!-- ── Flat overlays (explicit --overlays) ── -->
     <div class="section">
       <div class="section-label">Feature Overlay</div>
@@ -315,41 +341,13 @@
         </div>
       </div>
     </div>
-    {% endif %}
 
-    {% if manifest.feature_4d %}
-    <!-- ── 4D ── -->
+    {% else %}
+    <!-- ── No overlay data ── -->
     <div class="section">
-      <div class="section-label">4D Feature Maps</div>
-      <label>Feature</label>
-      <select id="feature4d-select" onchange="onFeature4DChange(this)">
-        {% if manifest.feature_4d_features %}
-          {% for name in manifest.feature_4d_features %}
-          <option value="{{ loop.index0 }}">{{ name }}</option>
-          {% endfor %}
-        {% else %}
-          {% for i in range(manifest.feature_4d_n_frames | default(1)) %}
-          <option value="{{ i }}">Frame {{ i }}</option>
-          {% endfor %}
-        {% endif %}
-      </select>
-      <label>Colormap</label>
-      <select id="colormap4d-select" onchange="onColormap4DChange(this)">
-        <option value="viridis">Viridis</option>
-        <option value="plasma">Plasma</option>
-        <option value="inferno">Inferno</option>
-        <option value="hot">Hot</option>
-        <option value="cool">Cool</option>
-        <option value="winter">Winter</option>
-        <option value="blue2red">Blue-Red</option>
-        <option value="gray">Gray</option>
-      </select>
-      <div class="row">
-        <label>Opacity</label>
-        <input type="range" id="map4d-opacity" min="0" max="1" step="0.05" value="0.7"
-               oninput="onMap4DOpacity(this)">
-        <span class="val" id="map4d-opacity-val">0.70</span>
-      </div>
+      <div class="section-label">Overlay</div>
+      <p class="overlay-hint">No overlay data. Launch with <code>--subject-dir</code>,
+         <code>--overlays</code>, or <code>--feature-4d</code> to add feature maps.</p>
     </div>
     {% endif %}
 
