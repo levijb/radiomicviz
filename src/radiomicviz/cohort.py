@@ -1,127 +1,191 @@
 """Generate a cohort CSV compatible with RadiomicViz batch_extract.
 
 Usage:
-    python generate_cohort_csv.py \
-        --study-folder /path/to/Zenodo_MRI_dataset \
-        --output-csv-name cohort
+    radiomicviz generate-csv \\
+        --study-folder /path/to/study \\
+        --output-csv-name cohort \\
+        --image-suffix _T1_lesion_filled_combined_mask_bet_n4_nu.nii.gz
 
 Then run extraction with:
-    radiomicviz batch-extract \
-        --subjects cohort.csv \
-        --image-col Image \
-        --mask-col Mask \
-        --preset mri-default \
-        --n-jobs 8 \
+    radiomicviz batch-extract \\
+        --subjects cohort.csv \\
+        --image-col Image \\
+        --mask-col Mask \\
+        --preset mri-default \\
+        --n-jobs 8 \\
         --output-dir ./radiomics_output/
 """
 
-import os
+from __future__ import annotations
+
 import csv
-import argparse
-import glob
+import logging
+from pathlib import Path
+from typing import Union
+
+logger = logging.getLogger(__name__)
+
+_COLUMNS = ["subject_id", "session", "mask_name", "Image", "Mask"]
 
 
-def generate_cohort_csv(study_folder, output_csv_name):
-    csv_rows = []
+def generate_cohort_csv(
+    study_folder: Union[str, Path],
+    output_csv_name: str,
+    image_suffix: str,
+    image_subdir: Union[str, list[str]] = "T1",
+    mask_dir: str = "derivatives/segmentation",
+    mask_suffix: str = ".nii.gz",
+    exclude_patterns: Union[list[str], None] = None,
+    recursive: bool = False,
+    dry_run: bool = False,
+    output_dir: Union[str, Path, None] = None,
+) -> dict:
+    """Generate a cohort CSV from a BIDS-like study folder.
 
-    subjects_path = os.path.join(study_folder, "Subjects")
+    Traverses ``study_folder/Subjects/{subject}/{session}/`` and builds one
+    CSV row per mask file found, paired with the matching image file.
 
-    if not os.path.isdir(subjects_path):
-        print(f"ERROR: Subjects directory not found at {subjects_path}")
-        return
+    Parameters
+    ----------
+    study_folder : str or Path
+        Root study folder containing a ``Subjects/`` directory.
+    output_csv_name : str
+        Name of the output CSV file (without ``.csv`` extension).
+    image_suffix : str
+        Filename suffix to glob for image files
+        (e.g. ``_T1_lesion_filled_combined_mask_bet_n4_nu.nii.gz``).
+    image_subdir : str or list[str], optional
+        Subdirectory or subdirectories under each session to search for images.
+        Accepts a comma-separated string or a list. Searched in order; first
+        match wins. Default: ``"T1"``.
+    mask_dir : str, optional
+        Relative path from session directory to mask folder.
+        Default: ``"derivatives/segmentation"``.
+    mask_suffix : str, optional
+        Suffix filter for mask files. Default: ``".nii.gz"``.
+    exclude_patterns : list[str] or None, optional
+        Substrings in image filenames to skip. Default: ``["mask", "seg"]``.
+    recursive : bool, optional
+        If ``True``, search ``image_subdir`` recursively. Default: ``False``.
+    dry_run : bool, optional
+        Log what would be written without creating the CSV. Default: ``False``.
+    output_dir : str, Path, or None, optional
+        Directory to write the CSV. Defaults to ``study_folder`` if ``None``.
 
-    for subject in sorted(os.listdir(subjects_path)):
-        subject_path = os.path.join(subjects_path, subject)
+    Returns
+    -------
+    dict
+        ``{"csv_path": Path, "n_subjects": int, "n_sessions": int,
+        "n_rows": int, "warnings": list[str]}``
 
-        if not os.path.isdir(subject_path):
+    Raises
+    ------
+    ValueError
+        If the Subjects directory is not found or no rows are generated.
+    """
+    study_folder = Path(study_folder)
+    output_dir = Path(output_dir) if output_dir is not None else study_folder
+
+    if exclude_patterns is None:
+        exclude_patterns = ["mask", "seg"]
+
+    if isinstance(image_subdir, str):
+        image_subdir = [s.strip() for s in image_subdir.split(",")]
+
+    subjects_path = study_folder / "Subjects"
+    if not subjects_path.is_dir():
+        raise ValueError(f"Subjects directory not found at {subjects_path}")
+
+    csv_rows: list[list[str]] = []
+    warnings: list[str] = []
+
+    for subject_dir in sorted(subjects_path.iterdir()):
+        if not subject_dir.is_dir():
             continue
+        subject = subject_dir.name
 
-        for session in sorted(os.listdir(subject_path)):
-            session_path = os.path.join(subject_path, session)
+        for session_dir in sorted(subject_dir.iterdir()):
+            if not session_dir.is_dir():
+                continue
+            session = session_dir.name
 
-            if not os.path.isdir(session_path):
+            mask_path_dir = session_dir / mask_dir
+            if not mask_path_dir.is_dir():
+                msg = f"Mask directory not found: {subject}/{session}/{mask_dir}"
+                logger.warning(msg)
+                warnings.append(msg)
                 continue
 
-            # Path to segmentation folder
-            seg_path = os.path.join(session_path, "derivatives", "segmentation")
-
-            if not os.path.isdir(seg_path):
-                print(f"WARNING: Segmentation directory not found for {subject}/{session}")
-                continue
-
-            # Find all mask files in segmentation folder
-            mask_files = glob.glob(os.path.join(seg_path, "*.nii.gz"))
-
-            if not mask_files:
-                print(f"WARNING: No mask files found for {subject}/{session} in {seg_path}")
-                continue
-
-            # Find T1 image
-            t1_pattern = os.path.join(
-                session_path,
-                "T1",
-                f"{subject}*_T1_lesion_filled_combined_mask_bet_n4_nu.nii.gz",
+            mask_files = sorted(
+                p for p in mask_path_dir.iterdir()
+                if p.is_file() and p.name.endswith(mask_suffix)
             )
-            t1_files = [
-                f
-                for f in glob.glob(t1_pattern)
-                if "mask" not in os.path.basename(f).lower()
-                and "seg" not in os.path.basename(f).lower()
-            ]
-
-            if not t1_files:
-                print(f"WARNING: No T1 image found for {subject}/{session}")
+            if not mask_files:
+                msg = f"No mask files found for {subject}/{session} in {mask_path_dir}"
+                logger.warning(msg)
+                warnings.append(msg)
                 continue
 
-            t1_path = t1_files[0]
+            image_path: Union[Path, None] = None
+            for subdir in image_subdir:
+                search_root = session_dir / subdir
+                if not search_root.is_dir():
+                    continue
+                glob_pattern = f"**/*{image_suffix}" if recursive else f"*{image_suffix}"
+                candidates = [
+                    p for p in search_root.glob(glob_pattern)
+                    if p.is_file()
+                    and not any(pat.lower() in p.name.lower() for pat in exclude_patterns)
+                ]
+                if candidates:
+                    image_path = candidates[0]
+                    break
 
-            # One row per mask file
-            for mask_path in sorted(mask_files):
-                mask_name = os.path.splitext(
-                    os.path.splitext(os.path.basename(mask_path))[0]
-                )[0]  # strip .nii.gz
-                print(f"Found: {subject}/{session} — {os.path.basename(mask_path)}")
-                csv_rows.append([subject, session, mask_name, t1_path, mask_path])
+            if image_path is None:
+                msg = f"No image found for {subject}/{session} (suffix: {image_suffix!r})"
+                logger.warning(msg)
+                warnings.append(msg)
+                continue
 
-    # Write CSV
-    os.makedirs(study_folder, exist_ok=True)
-    csv_path = os.path.join(study_folder, output_csv_name + ".csv")
+            for mask_file in mask_files:
+                mask_name = mask_file.name
+                if mask_name.endswith(".nii.gz"):
+                    mask_name = mask_name[:-7]
+                elif mask_name.endswith(".nii"):
+                    mask_name = mask_name[:-4]
+                logger.info("Found: %s/%s — %s", subject, session, mask_file.name)
+                csv_rows.append([subject, session, mask_name, str(image_path), str(mask_file)])
 
-    with open(csv_path, "w", newline="") as csv_file:
-        writer = csv.writer(csv_file)
-        writer.writerow(["subject_id", "session", "mask_name", "Image", "Mask"])
-        writer.writerows(csv_rows)
+    if not csv_rows:
+        raise ValueError(
+            "No rows generated. Check --image-suffix and --image-subdir arguments."
+        )
 
-    print(f"\n{'=' * 50}")
-    print(f"CSV file created: {csv_path}")
-    print(f"Total rows: {len(csv_rows)}")
-    print(f"{'=' * 50}")
-    print(f"\nRun extraction with:")
-    print(f"  radiomicviz batch-extract \\")
-    print(f"    --subjects {csv_path} \\")
-    print(f"    --image-col Image \\")
-    print(f"    --mask-col Mask \\")
-    print(f"    --preset mri-default \\")
-    print(f"    --n-jobs 8 \\")
-    print(f"    --output-dir ./radiomics_output/")
+    n_subjects = len({row[0] for row in csv_rows})
+    n_sessions = len({(row[0], row[1]) for row in csv_rows})
+    n_rows = len(csv_rows)
+    csv_path = output_dir / (output_csv_name + ".csv")
 
+    if dry_run:
+        logger.info("Dry run — no file written.")
+        logger.info("Would write: %s", csv_path)
+    else:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        with csv_path.open("w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(_COLUMNS)
+            writer.writerows(csv_rows)
+        logger.info("CSV written: %s", csv_path)
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Generate a RadiomicViz-compatible cohort CSV from a BIDS-like study folder."
+    logger.info(
+        "Subjects: %d, Sessions: %d, Rows: %d, Warnings: %d",
+        n_subjects, n_sessions, n_rows, len(warnings),
     )
-    parser.add_argument(
-        "--study-folder",
-        type=str,
-        required=True,
-        help="Path to the study folder (e.g., Zenodo_MRI_dataset)",
-    )
-    parser.add_argument(
-        "--output-csv-name",
-        type=str,
-        required=True,
-        help="Name of the output CSV file (without .csv extension)",
-    )
 
-    args = parser.parse_args()
-    generate_cohort_csv(args.study_folder, args.output_csv_name)
+    return {
+        "csv_path": csv_path,
+        "n_subjects": n_subjects,
+        "n_sessions": n_sessions,
+        "n_rows": n_rows,
+        "warnings": warnings,
+    }

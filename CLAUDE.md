@@ -27,7 +27,7 @@ src/radiomicviz/
 ├── result.py             # ExtractionResult dataclass — the central contract
 ├── extract.py            # single-subject PyRadiomics wrapper (ROI + voxelwise)
 ├── batch.py              # parallel batch extraction with joblib
-├── cohort.py             # cohort CSV generator for Zenodo dataset
+├── cohort.py             # configurable cohort CSV generator (BIDS-like Subjects/{subject}/{session}/ layout)
 ├── cli.py                # Click CLI: extract, batch-extract, validate, generate-slurm, etc.
 ├── _slurm.py             # SLURM script generator (single, array, chunked strategies)
 ├── presets/              # 7 YAML configs (mri-default, mri-texture, etc.)

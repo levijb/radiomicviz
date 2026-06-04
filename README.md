@@ -130,6 +130,77 @@ radiomicviz list-presets
 radiomicviz show-preset mri-texture
 ```
 
+## Cohort CSV Generation
+
+`generate-csv` builds the cohort CSV required by `batch-extract` from a BIDS-like study folder. Use it when your data is organized under a `Subjects/{subject}/{session}/` hierarchy — one call produces a ready-to-use CSV with columns `subject_id`, `session`, `mask_name`, `Image`, `Mask`.
+
+### Expected folder structure
+
+```
+study_folder/
+└── Subjects/
+    └── sub-01/
+        └── ses-01/
+            ├── T1/                          ← --image-subdir (default: T1)
+            │   └── sub-01*{suffix}          ← --image-suffix (required)
+            └── derivatives/segmentation/    ← --mask-dir (default)
+                └── *.nii.gz                 ← --mask-suffix (default: .nii.gz)
+```
+
+### CLI
+
+Use `--dry-run` first to verify the glob finds the right files before writing the CSV:
+
+```bash
+# Dry run — verify glob pattern before writing
+radiomicviz generate-csv \
+    --study-folder /mnt/lustre/lab/Levi/ \
+    --output-csv-name cohort \
+    --image-suffix _T1_lesion_filled_combined_mask_bet_n4_nu.nii.gz \
+    --dry-run
+
+# Write the CSV
+radiomicviz generate-csv \
+    --study-folder /mnt/lustre/lab/Levi/ \
+    --output-csv-name cohort \
+    --image-suffix _T1_lesion_filled_combined_mask_bet_n4_nu.nii.gz
+
+# Custom layout (FLAIR images in a different subdir, masks in a custom folder)
+radiomicviz generate-csv \
+    --study-folder /data/study/ \
+    --output-csv-name cohort \
+    --image-suffix _FLAIR_brain.nii.gz \
+    --image-subdir FLAIR \
+    --mask-dir derivatives/masks \
+    --mask-suffix _tract.nii.gz \
+    --output-dir /data/study/outputs/
+```
+
+### Python API
+
+```python
+from radiomicviz import generate_cohort_csv
+
+summary = generate_cohort_csv(
+    study_folder="/mnt/lustre/lab/Levi/",
+    output_csv_name="cohort",
+    image_suffix="_T1_lesion_filled_combined_mask_bet_n4_nu.nii.gz",
+)
+print(f"{summary['n_subjects']} subjects, {summary['n_rows']} rows → {summary['csv_path']}")
+```
+
+Then feed the CSV to `batch-extract`:
+
+```bash
+radiomicviz batch-extract \
+    --subjects cohort.csv \
+    --image-col Image \
+    --mask-col Mask \
+    --preset mri-default \
+    --n-jobs 8 \
+    --output-dir ./radiomics_output/
+```
+
 ## Presets
 
 Built-in extraction configurations. Use `show_preset("name")` to inspect the full YAML.

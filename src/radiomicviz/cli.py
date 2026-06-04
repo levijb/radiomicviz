@@ -2,6 +2,7 @@
 Command-line interface for RadiomicViz.
 
 Usage:
+    radiomicviz generate-csv --study-folder /data/study --output-csv-name cohort --image-suffix _T1.nii.gz
     radiomicviz extract --image t1.nii.gz --mask mask.nii.gz --preset mri-default
     radiomicviz batch-extract --subjects cohort.csv --image-col t1_path --mask-col mask_path
     radiomicviz validate --image t1.nii.gz --mask mask.nii.gz
@@ -44,10 +45,61 @@ def cli():
               help="Path to the study folder containing a Subjects/ directory.")
 @click.option("--output-csv-name", required=True,
               help="Name of the output CSV file (without .csv extension).")
-def generate_csv(study_folder, output_csv_name):
+@click.option("--image-suffix", required=True,
+              help="Filename suffix to glob for image files "
+                   "(e.g. _T1_lesion_filled_combined_mask_bet_n4_nu.nii.gz).")
+@click.option("--image-subdir", default="T1", show_default=True,
+              help="Subdirectory under each session to search for images. "
+                   "Comma-separated for multiple (searched in order, first match wins).")
+@click.option("--mask-dir", default="derivatives/segmentation", show_default=True,
+              help="Relative path from session directory to mask folder.")
+@click.option("--mask-suffix", default=".nii.gz", show_default=True,
+              help="Suffix filter for mask files.")
+@click.option("--exclude-pattern", "exclude_patterns", multiple=True,
+              help="Substring in image filename to skip (repeatable). "
+                   "Default when omitted: mask, seg.")
+@click.option("--recursive", is_flag=True,
+              help="Search image-subdir recursively.")
+@click.option("--dry-run", is_flag=True,
+              help="Show what would be written without creating the CSV.")
+@click.option("-o", "--output-dir", default=None, type=click.Path(),
+              help="Directory to write the CSV (default: --study-folder).")
+@click.option("-v", "--verbose", is_flag=True, help="Verbose output.")
+def generate_csv(study_folder, output_csv_name, image_suffix, image_subdir,
+                 mask_dir, mask_suffix, exclude_patterns, recursive, dry_run,
+                 output_dir, verbose):
     """Generate a RadiomicViz-compatible cohort CSV from a BIDS-like study folder."""
+    _setup_logging(verbose)
     from radiomicviz.cohort import generate_cohort_csv
-    generate_cohort_csv(study_folder, output_csv_name)
+
+    try:
+        summary = generate_cohort_csv(
+            study_folder=study_folder,
+            output_csv_name=output_csv_name,
+            image_suffix=image_suffix,
+            image_subdir=image_subdir,
+            mask_dir=mask_dir,
+            mask_suffix=mask_suffix,
+            exclude_patterns=list(exclude_patterns) or None,
+            recursive=recursive,
+            dry_run=dry_run,
+            output_dir=output_dir,
+        )
+        if dry_run:
+            click.echo(f"Dry run — would write: {summary['csv_path']}")
+        else:
+            click.echo(f"CSV written: {summary['csv_path']}")
+        click.echo(
+            f"{summary['n_subjects']} subjects, {summary['n_sessions']} sessions, "
+            f"{summary['n_rows']} rows"
+        )
+        if summary["warnings"]:
+            click.secho(
+                f"{len(summary['warnings'])} warning(s) — run with -v for details",
+                fg="yellow", err=True,
+            )
+    except ValueError as exc:
+        raise click.UsageError(str(exc))
     
 
 # -------------------------------------------------------------------------
