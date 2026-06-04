@@ -27,7 +27,7 @@ src/radiomicviz/
 ├── result.py             # ExtractionResult dataclass — the central contract
 ├── extract.py            # single-subject PyRadiomics wrapper (ROI + voxelwise)
 ├── batch.py              # parallel batch extraction with joblib
-├── cohort.py             # configurable cohort CSV generator (BIDS-like Subjects/{subject}/{session}/ layout)
+├── cohort.py             # configurable cohort CSV generator (BIDS-like folder traversal, --image-suffix, --mask-dir, etc.)
 ├── cli.py                # Click CLI: extract, batch-extract, validate, generate-slurm, etc.
 ├── _slurm.py             # SLURM script generator (single, array, chunked strategies)
 ├── presets/              # 7 YAML configs (mri-default, mri-texture, etc.)
@@ -122,7 +122,7 @@ NOT `setuptools.backends._legacy:_Backend` (which was incorrectly generated once
 - ~2,100 subjects in BIDS-like structure
 - Path on cluster: `/mnt/lustre/lab/general/ctcn_imaging/Levi/`
 - Structure: `Subjects/{subject}/{session}/derivatives/segmentation/*.nii.gz`
-- T1 images: `{subject}_T1_lesion_filled_combined_mask_bet_n4_nu.nii.gz`
+- T1 images: `{subject}_T1_bet_n4_nu.nii.gz` (suffix passed via `--image-suffix` to `generate-csv`)
 - 13 tract segmentation masks per subject: CST_L, CST_R, AF_R, IFOF_L, etc.
 
 ### Cohort CSV Format
