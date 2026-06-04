@@ -67,6 +67,12 @@
 
     label { font-size: 11px; color: #8a96b4; display: block; min-width: 0; }
 
+    .overlay-hint { font-size: 10px; color: #5a6688; line-height: 1.45; padding: 2px 0; }
+    .overlay-hint code {
+      background: #11162a; color: #7e9ad0; border: 1px solid #1e2848;
+      border-radius: 3px; padding: 0 3px; font-size: 10px;
+    }
+
     select {
       width: 100%; min-width: 0;
       background: #080a16; border: 1px solid #252e4a; color: #c8cedf;
@@ -223,8 +229,8 @@
       </select>
     </div>
 
-    {% if manifest.regions %}
-    <!-- ── Add Overlay (regions mode) ── -->
+    {% if not manifest.overlays %}
+    <!-- ── Add Overlay ── (always shown unless explicit flat --overlays were passed) -->
     <div class="section">
       <div class="section-label">Add Overlay</div>
 
@@ -235,6 +241,13 @@
         <option value="{{ rname }}">{{ rname | replace('_',' ') }}</option>
         {% endfor %}
       </select>
+      {% else %}
+      <label>Region</label>
+      <select id="region-select" onchange="onRegionChange(this)" disabled>
+        <option value="">&#8212; none &#8212;</option>
+      </select>
+      <p class="overlay-hint">No overlay data. Launch with <code>--subject-dir</code>
+         or <code>--overlays</code> to add feature maps.</p>
       {% endif %}
 
       <label>Feature</label>
@@ -265,8 +278,8 @@
       <div id="layers-container"></div>
     </div>
 
-    {% elif manifest.overlays %}
-    <!-- ── Flat overlays (no regions) ── -->
+    {% else %}
+    <!-- ── Flat overlays (explicit --overlays) ── -->
     <div class="section">
       <div class="section-label">Feature Overlay</div>
       <label>Feature</label>

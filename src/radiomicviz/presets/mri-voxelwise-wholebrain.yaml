@@ -1,11 +1,11 @@
 # radiomicviz preset: mri-voxelwise-wholebrain
-# Optimized for whole-brain voxelwise extraction
+# Optimized for whole-brain voxelwise extraction 
 # parcellation masks. Uses first-order + key texture features only to
 # keep the output manageable at full-brain scale.
 #
 # Intended usage:
 #   result = extract("t1.nii.gz", "samseg.nii.gz",
-#                    preset="mri-wholebrain",
+#                    preset="mri-voxelwise-wholebrain",
 #                    mode="voxelwise",
 #                    brain_mode="whole")  # or "hybrid"
 
