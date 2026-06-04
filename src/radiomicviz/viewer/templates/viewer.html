@@ -700,6 +700,14 @@ async function reloadVolumes() {
     const vols = buildVolumeList();
     await nv.loadVolumes(vols);
 
+    // loadVolumes auto-calibrates and overwrites cal_min; clamp bg to 0 so
+    // z-scored T1 background voxels (value=0) render black instead of mid-grey.
+    const bgVol = nv.volumes[0];
+    if (bgVol && typeof bgVol.cal_min === "number" && bgVol.cal_min < 0) {
+      bgVol.cal_min = 0;
+      nv.drawScene();
+    }
+
     // ── Read robust stats for each active visible layer ──────────────
     const maskOff = MANIFEST.mask && maskVisible ? 1 : 0;
     let vi = 0;
@@ -773,6 +781,7 @@ function onBgChange(el) {
 // ── Init ─────────────────────────────────────────────────────
 async function init() {
   nv.attachToCanvas(document.getElementById("gl"));
+  nv.opts.backColor = [0, 0, 0, 1];
   await reloadVolumes();
   nv.setSliceType(nv.sliceTypeMultiplanar);
   if (currentRegion) {
