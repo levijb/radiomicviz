@@ -657,7 +657,7 @@ function renderLayerCards() {
 
 // ── Volume list ───────────────────────────────────────────────
 function buildVolumeList() {
-  const bgSpec = { url:`/data/${currentBgFile}`, colormap:"gray", opacity:1, colorbarVisible:false };
+  const bgSpec = { url:`/data/${currentBgFile}`, colormap:"gray", opacity:1, colorbarVisible:false, cal_min:0 };
   const vols = [bgSpec];
 
   if (MANIFEST.mask && maskVisible)
