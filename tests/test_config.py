@@ -16,10 +16,10 @@ class TestPresets:
         assert "mri-default" in presets
         assert "mri-texture" in presets
         assert "mri-firstorder" in presets
-        assert "mri-habitat" in presets
+        assert "mri-voxelwise" in presets
         assert "mri-all-transforms" in presets
         assert "minimal" in presets
-        assert "mri-wholebrain" in presets
+        assert "mri-voxelwise-wholebrain" in presets
 
     def test_load_preset(self):
         config = load_preset("mri-default")
@@ -38,7 +38,7 @@ class TestPresets:
         assert "Preset: minimal" in captured.out
 
     def test_wholebrain_preset_structure(self):
-        config = load_preset("mri-wholebrain")
+        config = load_preset("mri-voxelwise-wholebrain")
         assert "setting" in config
         assert "voxelSetting" in config
         assert config["voxelSetting"]["voxelBatch"] == 5000
