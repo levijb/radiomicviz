@@ -15,6 +15,8 @@ from radiomicviz.validate import validate_inputs
 from radiomicviz.result import ExtractionResult
 from radiomicviz.cohort import generate_cohort_csv
 from radiomicviz.viewer import launch_viewer
+from radiomicviz.habitat import HabitatResult
+from radiomicviz.cluster import cluster_habitats
 
 __all__ = [
     "__version__",
@@ -26,4 +28,6 @@ __all__ = [
     "ExtractionResult",
     "generate_cohort_csv",
     "launch_viewer",
+    "HabitatResult",
+    "cluster_habitats",
 ]

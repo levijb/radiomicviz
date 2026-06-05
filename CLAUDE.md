@@ -12,8 +12,8 @@ RadiomicViz is a Python package that wraps PyRadiomics with input validation, co
 
 ## Project Phases
 
-- **Phase 1 (active):** Extraction layer — working. PyRadiomics wrapper with CLI, presets, batch, SLURM.
-- **Phase 2 (planned):** Interactive 3D viewer — browser-based, Flask + Niivue.js. See `VIEWER_SPEC.md`.
+- **Phase 1 (complete):** Extraction layer — PyRadiomics wrapper with CLI, presets, batch, SLURM.
+- **Phase 2 (complete):** Interactive 3D viewer — Flask + Niivue.js browser viewer. `result.view()` launches it. See `VIEWER_SPEC.md`.
 - **Phase 3 (future):** Analysis modules — clustering (GMM, PCA, UMAP), model saliency (SHAP), cohort statistics.
 
 ## Package Structure
@@ -202,24 +202,33 @@ result.to_csv("test_output.csv")
 
 ---
 
-## Phase 2: Viewer (Planned)
+## Phase 2: Viewer (Complete)
 
-See `VIEWER_SPEC.md` for the full spec. Key points:
+See `VIEWER_SPEC.md` for the full spec. The viewer is built and functional.
 
 - **Stack:** Flask (Python file server) + Niivue.js (WebGL renderer in browser)
-- **API:** `result.view()` or `radiomicviz view --image t1.nii.gz --mask mask.nii.gz`
-- **Routes:** `GET /` (viewer HTML), `GET /data/<file>` (NIfTI files), `GET /api/volumes` (JSON manifest)
-- **Why not Panel/napari:** Works over SSH, no X11 needed, one small dependency (Flask), all rendering is client-side
+- **API:** `result.view()` or `radiomicviz view --image t1.nii.gz --mask mask.nii.gz --subject-dir <dir>`
+- **Routes:** `GET /` (viewer HTML), `GET /data/<file>` (NIfTI/NRRD files), `GET /api/volumes` (JSON manifest)
+- **Works over SSH:** VS Code port forwarding — no X11, no desktop GUI
 - **Niivue CDN:** `https://unpkg.com/@niivue/niivue/dist/niivue.umd.js`
-- **Dependencies:** Only `flask>=2.3` (nibabel already a core dep, Niivue loaded from CDN)
+- **Dependencies:** `flask>=2.3` (add via `pip install radiomicviz[viewer]`)
 
-### Viewer UI (must-haves)
-- Orthogonal slice views (axial, coronal, sagittal)
-- 3D volume rendering toggle
+### Viewer UI (implemented)
+- Orthogonal slice views (axial, coronal, sagittal) + 3D toggle
 - Mask overlay with adjustable opacity
-- Feature map dropdown (populated from `/api/volumes`)
-- Colormap selector (viridis, hot, cool, inferno, etc.)
-- Crosshair navigation with voxel coordinates
+- ADD OVERLAY panel — always visible; select region + feature + colormap, stack multiple overlays
+- Per-overlay Min/Max range sliders with colorbar
+- 4D NIfTI mode: volume index slider, colormap reset on feature switch
+- Crosshair navigation with voxel coordinate + value readout
+- Save Screenshot action
+- Background image switcher
+
+### Known bugs fixed
+- Critical spatial misalignment in `to_4d_nifti()` — cropped SimpleITK feature maps were saved with full-volume affine (fixed)
+- Axis ordering in `_expand_to_full_shape()` — SimpleITK LPS / `(z,y,x)` ordering not correctly handled during padding (fixed)
+- NiiVue colormap range not resetting when switching features in 4D mode (fixed)
+- Flask was missing from the conda environment (added)
+- `batch.py` Unicode encoding error on `errors.log` (fixed)
 
 ---
 
@@ -313,6 +322,11 @@ Before adding a new dependency:
 8. **Don't forget `--no-build-isolation` when installing pyradiomics.** It needs numpy pre-installed for C++ compilation.
 9. **Don't use `setuptools.backends._legacy:_Backend` as build backend.** Use `setuptools.build_meta`.
 10. **Don't push from desktop Claude Code.** Use terminal Claude Code for git operations (local credentials).
+11. **Don't save cropped feature maps with the full-volume affine.** `to_4d_nifti()` must use the cropped bounding-box affine from SimpleITK, then pad back to full volume with the original affine.
+12. **Don't forget the SimpleITK axis swap in `_expand_to_full_shape()`.** SimpleITK returns arrays in `(z, y, x)` order — transpose to `(x, y, z)` before padding into the full-volume array.
+13. **Don't add `flask` to `environment.yaml` under conda packages.** It's a pip dep — install via `pip install radiomicviz[viewer]` or add to the `pip:` block in environment.yaml.
+14. **Don't open `errors.log` in `batch.py` without `encoding="utf-8"`.** Unicode in subject IDs or paths will crash the batch run on Windows or non-UTF-8 systems.
+15. **Don't change preset discretization settings independently.** All 7 presets must share `binCount: 32`, `normalize: true`, `normalizeScale: 100`, `voxelArrayShift: 300`, `resampledPixelSpacing: null`. Cross-preset comparisons are only valid when preprocessing is identical.
 
 ---
 
