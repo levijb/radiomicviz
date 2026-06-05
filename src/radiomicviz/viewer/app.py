@@ -34,6 +34,9 @@ _nrrd_cache_lock = threading.Lock()
 _nrrd_tmpdir: Optional[str] = None
 _nrrd_tmpdir_lock = threading.Lock()
 
+_bg_nanfill_cache: dict[str, str] = {}
+_bg_nanfill_lock = threading.Lock()
+
 
 def _ensure_nrrd_tmpdir() -> str:
     global _nrrd_tmpdir
@@ -70,6 +73,33 @@ def _nrrd_as_nifti(nrrd_path_str: str) -> str:
     return str(out_path)
 
 
+def _nanfill_background(path_str: str) -> str:
+    """Return path to a background NIfTI with zero voxels replaced by NaN, cached."""
+    with _bg_nanfill_lock:
+        cached = _bg_nanfill_cache.get(path_str)
+    if cached:
+        return cached
+
+    import nibabel as nib
+    import numpy as np
+
+    nii = nib.load(path_str)
+    data = nii.get_fdata(dtype=np.float32).copy()
+    data[data == 0] = np.nan
+    out = nib.Nifti1Image(data, nii.affine, nii.header)
+
+    tmpdir = _ensure_nrrd_tmpdir()  # reuse same tmpdir
+    out_name = "bg_nanfill__" + Path(path_str).name
+    out_path = str(Path(tmpdir) / out_name)
+    nib.save(out, out_path)
+
+    with _bg_nanfill_lock:
+        _bg_nanfill_cache[path_str] = out_path
+
+    logger.debug("NaN-filled background %s → %s", path_str, out_path)
+    return out_path
+
+
 def create_app(files: dict[str, str], manifest: dict) -> Flask:
     """
     Build the Flask app.
@@ -93,6 +123,8 @@ def create_app(files: dict[str, str], manifest: dict) -> Flask:
     app = Flask(__name__, template_folder="templates")
     app.config["FILES"] = files
     app.config["MANIFEST"] = manifest
+    _bg_keys = {manifest.get("image", "")} | set(manifest.get("backgrounds", []))
+    app.config["BG_KEYS"] = _bg_keys
 
     @app.route("/")
     def index():
@@ -110,6 +142,12 @@ def create_app(files: dict[str, str], manifest: dict) -> Flask:
             except Exception as exc:
                 logger.error("NRRD conversion failed for %s: %s", real_path, exc)
                 abort(500)
+
+        if filename in app.config.get("BG_KEYS", set()) and not real_path.endswith(".nrrd"):
+            try:
+                real_path = _nanfill_background(real_path)
+            except Exception as exc:
+                logger.warning("NaN-fill failed for %s, serving original: %s", real_path, exc)
 
         return send_file(str(real_path), mimetype="application/octet-stream")
 
