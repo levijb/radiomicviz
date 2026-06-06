@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import warnings
 from datetime import datetime
 from pathlib import Path
@@ -431,3 +432,199 @@ def cluster_habitats(
         },
         mask_nii=mask_nii,
     )
+
+
+# ---------------------------------------------------------------------------
+# Batch helpers  (module-level so joblib workers can pickle them)
+# ---------------------------------------------------------------------------
+
+def _resolve_id_col(df: pd.DataFrame, user_col: Optional[str] = None) -> str:
+    """Return a subject-ID column name, trying user_col then common names."""
+    if user_col and user_col in df.columns:
+        return user_col
+    for candidate in ("subject_id", "Subject", "Patient", "participant_id", "ID", "id"):
+        if candidate in df.columns:
+            return candidate
+    df["_row_index"] = [f"sub_{i:04d}" for i in range(len(df))]
+    return "_row_index"
+
+
+def _cluster_one(
+    job: dict,
+    method: str,
+    n_clusters,
+    k_range: tuple,
+    redundancy_threshold: float,
+    pca_components,
+    gmm_covariance_type: str,
+    random_state: int,
+    min_cluster_size: int,
+) -> tuple:
+    """Per-subject worker for joblib; returns (subject_id, HabitatResult | error_string)."""
+    sub_id = job["subject_id"]
+    try:
+        result = cluster_habitats(
+            source=job["feature_4d"],
+            mask=job["mask"],
+            method=method,
+            n_clusters=n_clusters,
+            k_range=k_range,
+            redundancy_threshold=redundancy_threshold,
+            pca_components=pca_components,
+            gmm_covariance_type=gmm_covariance_type,
+            random_state=random_state,
+            min_cluster_size=min_cluster_size,
+        )
+        return (sub_id, result)
+    except Exception as exc:
+        error_msg = f"{type(exc).__name__}: {exc}"
+        logger.error("Subject %s failed: %s", sub_id, error_msg)
+        return (sub_id, error_msg)
+
+
+def batch_cluster(
+    subjects: Union[str, Path, pd.DataFrame],
+    feature_4d_col: str,
+    mask_col: str,
+    output_dir: Union[str, Path],
+    subject_id_col: Optional[str] = None,
+    n_jobs: int = 1,
+    save_probs: bool = False,
+    method: str = "gmm",
+    n_clusters: Union[int, str] = "auto",
+    k_range: tuple = (2, 6),
+    redundancy_threshold: float = 0.70,
+    pca_components: Optional[Union[int, str]] = None,
+    gmm_covariance_type: str = "full",
+    random_state: int = 42,
+    min_cluster_size: int = 10,
+) -> dict:
+    """
+    Cluster voxelwise radiomics features for a cohort of subjects.
+
+    Parameters
+    ----------
+    subjects : str, Path, or pd.DataFrame
+        CSV path or already-loaded DataFrame with per-subject rows.
+    feature_4d_col : str
+        Column containing paths to 4D NIfTI feature maps.
+    mask_col : str
+        Column containing paths to binary mask NIfTIs.
+    output_dir : str or Path
+        Root output directory. Per-subject results go to
+        ``{output_dir}/{subject_id}/``.
+    subject_id_col : str, optional
+        Column with subject IDs. Auto-detected when None.
+    n_jobs : int
+        Parallel workers (joblib). 1 = sequential.
+    save_probs : bool
+        Save GMM probability map when available.
+    method, n_clusters, k_range, redundancy_threshold, pca_components,
+    gmm_covariance_type, random_state, min_cluster_size :
+        Forwarded to ``cluster_habitats()``.
+
+    Returns
+    -------
+    dict
+        Manifest with keys: ``radiomicviz_version``, ``timestamp``,
+        ``subjects_csv``, ``total_rows``, ``succeeded_rows``,
+        ``failed_rows``, ``total_time_seconds``, ``cluster_params``,
+        ``successes``, ``failures``, ``manifest_path``.
+    """
+    if isinstance(subjects, pd.DataFrame):
+        df = subjects.copy()
+        subjects_label = "<DataFrame>"
+    else:
+        subjects_path = Path(subjects)
+        if not subjects_path.exists():
+            raise FileNotFoundError(f"Subjects CSV not found: {subjects_path}")
+        df = pd.read_csv(subjects_path)
+        subjects_label = str(subjects_path)
+        logger.info("Loaded %d subjects from %s", len(df), subjects_path)
+
+    for col in (feature_4d_col, mask_col):
+        if col not in df.columns:
+            raise ValueError(
+                f"Column '{col}' not found. Available: {list(df.columns)}"
+            )
+
+    id_col = _resolve_id_col(df, subject_id_col)
+    logger.info("Subject ID column: '%s'", id_col)
+
+    jobs = [
+        {
+            "subject_id": str(row[id_col]),
+            "feature_4d": row[feature_4d_col],
+            "mask": row[mask_col],
+        }
+        for _, row in df.iterrows()
+    ]
+
+    cluster_kwargs: dict = dict(
+        method=method,
+        n_clusters=n_clusters,
+        k_range=k_range,
+        redundancy_threshold=redundancy_threshold,
+        pca_components=pca_components,
+        gmm_covariance_type=gmm_covariance_type,
+        random_state=random_state,
+        min_cluster_size=min_cluster_size,
+    )
+
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    t0 = time.time()
+
+    if n_jobs == 1:
+        raw = [_cluster_one(job, **cluster_kwargs) for job in jobs]
+    else:
+        from joblib import Parallel, delayed
+        raw = Parallel(n_jobs=n_jobs, verbose=0)(
+            delayed(_cluster_one)(job, **cluster_kwargs) for job in jobs
+        )
+
+    total_time = time.time() - t0
+
+    successes: list[dict] = []
+    failures: list[dict] = []
+
+    for job, (sub_id, result_or_error) in zip(jobs, raw):
+        safe_id = sub_id.replace("/", "_").replace(" ", "_")
+        if isinstance(result_or_error, HabitatResult):
+            sub_dir = out / safe_id
+            sub_dir.mkdir(parents=True, exist_ok=True)
+            result_or_error.to_nifti(sub_dir / "habitats.nii.gz")
+            result_or_error.to_csv(sub_dir / "cluster_stats.csv")
+            if save_probs and result_or_error.probabilities is not None:
+                result_or_error.to_prob_nifti(sub_dir / "habitats_probs.nii.gz")
+            successes.append({"subject_id": sub_id, "output_dir": str(sub_dir)})
+            logger.info("Subject %s: OK → %s", sub_id, sub_dir)
+        else:
+            failures.append({"subject_id": sub_id, "error": result_or_error})
+            logger.error("Subject %s: FAILED — %s", sub_id, result_or_error)
+
+    manifest: dict = {
+        "radiomicviz_version": __version__,
+        "timestamp": datetime.now().isoformat(),
+        "subjects_csv": subjects_label,
+        "total_rows": len(jobs),
+        "succeeded_rows": len(successes),
+        "failed_rows": len(failures),
+        "total_time_seconds": round(total_time, 2),
+        "cluster_params": {k: str(v) for k, v in cluster_kwargs.items()},
+        "successes": successes,
+        "failures": failures,
+    }
+
+    manifest_path = out / "batch_manifest.json"
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2, default=str)
+    logger.info("Manifest written to %s", manifest_path)
+    manifest["manifest_path"] = str(manifest_path)
+
+    logger.info(
+        "Batch complete: %d/%d succeeded, %d failed (%.1fs)",
+        len(successes), len(jobs), len(failures), total_time,
+    )
+    return manifest

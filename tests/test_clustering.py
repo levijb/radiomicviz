@@ -228,9 +228,11 @@ class TestHabitatResult:
 
     # -- view() ----------------------------------------------------------------
 
-    def test_view_raises_not_implemented(self, habitat_result_gmm):
-        with pytest.raises(NotImplementedError, match="Step E"):
-            habitat_result_gmm.view()
+    def test_view_delegates_to_viewer(self, habitat_result_gmm):
+        from unittest.mock import patch
+        with patch("radiomicviz.viewer.launch_viewer_from_habitat") as mock_fn:
+            habitat_result_gmm.view(port=9999, open_browser=False)
+            mock_fn.assert_called_once_with(habitat_result_gmm, port=9999, open_browser=False)
 
     # -- repr ------------------------------------------------------------------
 
@@ -417,3 +419,117 @@ class TestClusterHabitats:
         assert isinstance(result, HabitatResult)
         mask_nii = nib.load(str(mask_path))
         assert result.label_map.shape == mask_nii.shape[:3]
+
+
+# ── Step D fixtures ───────────────────────────────────────────────────────────
+
+@pytest.fixture(scope="module")
+def batch_subjects_csv(tmp_path_factory, nifti_4d_and_mask):
+    """CSV with two subjects both using the same synthetic 4D NIfTI."""
+    nifti_path, mask_path = nifti_4d_and_mask
+    tmp_dir = tmp_path_factory.mktemp("batch_cluster_csv")
+    df = pd.DataFrame({
+        "subject_id": ["sub01", "sub02"],
+        "feature_4d": [str(nifti_path), str(nifti_path)],
+        "mask": [str(mask_path), str(mask_path)],
+    })
+    csv_path = tmp_dir / "subjects.csv"
+    df.to_csv(csv_path, index=False)
+    return csv_path
+
+
+# ── TestBatchCluster ──────────────────────────────────────────────────────────
+
+class TestBatchCluster:
+
+    _KR = (2, 3)
+
+    def test_two_subjects_completes(self, tmp_path, batch_subjects_csv):
+        from radiomicviz.cluster import batch_cluster
+        manifest = batch_cluster(
+            subjects=batch_subjects_csv,
+            feature_4d_col="feature_4d",
+            mask_col="mask",
+            output_dir=tmp_path / "out",
+            n_clusters=2,
+            k_range=self._KR,
+        )
+        assert isinstance(manifest, dict)
+        assert manifest["succeeded_rows"] == 2
+        assert manifest["failed_rows"] == 0
+
+    def test_manifest_has_successes_and_failures_keys(self, tmp_path, batch_subjects_csv):
+        from radiomicviz.cluster import batch_cluster
+        manifest = batch_cluster(
+            subjects=batch_subjects_csv,
+            feature_4d_col="feature_4d",
+            mask_col="mask",
+            output_dir=tmp_path / "out",
+            n_clusters=2,
+            k_range=self._KR,
+        )
+        assert "successes" in manifest
+        assert "failures" in manifest
+        assert isinstance(manifest["successes"], list)
+        assert isinstance(manifest["failures"], list)
+
+    def test_output_files_exist_for_each_subject(self, tmp_path, batch_subjects_csv):
+        from radiomicviz.cluster import batch_cluster
+        out = tmp_path / "out"
+        batch_cluster(
+            subjects=batch_subjects_csv,
+            feature_4d_col="feature_4d",
+            mask_col="mask",
+            output_dir=out,
+            n_clusters=2,
+            k_range=self._KR,
+        )
+        for sub_id in ("sub01", "sub02"):
+            assert (out / sub_id / "habitats.nii.gz").exists()
+            assert (out / sub_id / "cluster_stats.csv").exists()
+
+    def test_manifest_json_written_to_disk(self, tmp_path, batch_subjects_csv):
+        from radiomicviz.cluster import batch_cluster
+        out = tmp_path / "out"
+        manifest = batch_cluster(
+            subjects=batch_subjects_csv,
+            feature_4d_col="feature_4d",
+            mask_col="mask",
+            output_dir=out,
+            n_clusters=2,
+            k_range=self._KR,
+        )
+        assert Path(manifest["manifest_path"]).exists()
+
+    def test_n_jobs_2_parallel_path(self, tmp_path, batch_subjects_csv):
+        from radiomicviz.cluster import batch_cluster
+        manifest = batch_cluster(
+            subjects=batch_subjects_csv,
+            feature_4d_col="feature_4d",
+            mask_col="mask",
+            output_dir=tmp_path / "out",
+            n_jobs=2,
+            n_clusters=2,
+            k_range=self._KR,
+        )
+        assert manifest["succeeded_rows"] == 2
+
+    def test_bad_path_isolated_as_failure(self, tmp_path, nifti_4d_and_mask):
+        from radiomicviz.cluster import batch_cluster
+        nifti_path, mask_path = nifti_4d_and_mask
+        df = pd.DataFrame({
+            "subject_id": ["good", "bad"],
+            "feature_4d": [str(nifti_path), "/nonexistent/path.nii.gz"],
+            "mask": [str(mask_path), str(mask_path)],
+        })
+        manifest = batch_cluster(
+            subjects=df,
+            feature_4d_col="feature_4d",
+            mask_col="mask",
+            output_dir=tmp_path / "out",
+            n_clusters=2,
+            k_range=self._KR,
+        )
+        assert manifest["succeeded_rows"] == 1
+        assert manifest["failed_rows"] == 1
+        assert manifest["failures"][0]["subject_id"] == "bad"

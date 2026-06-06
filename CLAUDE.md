@@ -4,7 +4,7 @@ Guidelines for AI-assisted development of RadiomicViz. Merge with task-specific 
 
 ## What This Project Is
 
-RadiomicViz is a Python package that wraps PyRadiomics with input validation, config presets, structured output, batch processing, SLURM tooling, and (eventually) an interactive 3D brain viewer. It replaces the bespoke scripts neuroimaging researchers rewrite for every radiomics project.
+RadiomicViz is a Python package that wraps PyRadiomics with input validation, config presets, structured output, batch processing, SLURM tooling, an interactive 3D browser viewer, and habitat clustering. It replaces the bespoke scripts neuroimaging researchers rewrite for every radiomics project.
 
 **Repository:** `https://github.com/levijb/radiomicviz`
 **Layout:** `src/` layout, editable install via `pip install -e ".[dev]"`
@@ -13,18 +13,21 @@ RadiomicViz is a Python package that wraps PyRadiomics with input validation, co
 ## Project Phases
 
 - **Phase 1 (complete):** Extraction layer — PyRadiomics wrapper with CLI, presets, batch, SLURM.
-- **Phase 2 (complete):** Interactive 3D viewer — Flask + Niivue.js browser viewer. `result.view()` launches it. See `VIEWER_SPEC.md`.
-- **Phase 3 (future):** Analysis modules — clustering (GMM, PCA, UMAP), model saliency (SHAP), cohort statistics.
+- **Phase 2 (complete):** Interactive 3D viewer — Flask + Niivue.js. result.view() and radiomicviz view CLI.
+- **Phase 3 (complete):** Habitat clustering — GMM/K-means on voxelwise feature maps. See PHASE3_SPEC.md.
+- **Phase 4 (planned):** ICC precision filtering, UMAP viewer, cross-subject alignment, SHAP saliency. See PHASE4_SPEC.md.
 
 ## Package Structure
 
 ```
 src/radiomicviz/
 ├── __init__.py           # public API: extract, batch_extract, validate_inputs, etc.
-├── _version.py           # v0.1.0
+├── _version.py           # v0.2.0
 ├── validate.py           # 9 input checks (shape, affine, empty mask, float mask, etc.)
 ├── config.py             # preset loading with fallback chain
 ├── result.py             # ExtractionResult dataclass — the central contract
+├── habitat.py            # HabitatResult dataclass — clustering output contract
+├── cluster.py            # cluster_habitats() and batch_cluster() functions
 ├── extract.py            # single-subject PyRadiomics wrapper (ROI + voxelwise)
 ├── batch.py              # parallel batch extraction with joblib
 ├── cohort.py             # configurable cohort CSV generator (BIDS-like folder traversal, --image-suffix, --mask-dir, etc.)
@@ -39,11 +42,12 @@ src/radiomicviz/
 
 ## Architecture Principles
 
-1. **ExtractionResult is the contract.** It bridges Phase 1 (extraction) and Phase 2 (viewer). `result.view()` will launch the browser viewer directly. Do not bypass this dataclass.
+1. **ExtractionResult is the contract.** It bridges extraction (Phase 1), viewer (Phase 2), and clustering (Phase 3). `result.view()` launches the browser viewer. Pass result to `cluster_habitats()` to compute habitats. Do not bypass this dataclass.
 2. **Presets over raw config.** Users pick a named preset; custom YAML is the escape hatch. Fallback chain: custom config > named preset > mri-default.
 3. **joblib for parallelism.** Not Python's multiprocessing module. joblib handles the GIL, serialization, and cleanup better for scientific workloads.
 4. **Browser-based viewer only.** No Qt, no napari, no desktop GUI. Flask serves NIfTIs, Niivue.js renders via WebGL. Works over SSH with VS Code port forwarding.
 5. **Click for CLI.** All commands under `radiomicviz` entry point.
+6. **HabitatResult is the clustering contract.** `cluster_habitats(result)` → `HabitatResult`. `habitat.view()` launches the viewer with a discrete habitat overlay. Do not bypass this dataclass. The chain is: `ExtractionResult` → `cluster_habitats()` → `HabitatResult` → viewer.
 
 ---
 
@@ -185,6 +189,13 @@ pytest tests/test_extract.py -v
 pytest
 ```
 
+| File | What it tests |
+|---|---|
+| `tests/test_validate.py` | Input validation: shape, affine, empty mask, float values |
+| `tests/test_config.py` | Preset loading and config resolution |
+| `tests/test_extract.py` | Core extraction, voxelwise brain modes, basic batch |
+| `tests/test_clustering.py` | HabitatResult export methods, cluster_habitats() pipeline (GMM + K-means), batch_cluster() |
+
 ### Linting
 ```bash
 ruff check src/
@@ -198,6 +209,18 @@ from radiomicviz import validate_inputs, extract
 report = validate_inputs("sub01_T1.nii.gz", "sub01_mask.nii.gz")
 result = extract("sub01_T1.nii.gz", "sub01_mask.nii.gz", preset="mri-default")
 result.to_csv("test_output.csv")
+```
+
+```python
+# Clustering smoke test
+from radiomicviz import extract, cluster_habitats
+
+result = extract("sub01_T1.nii.gz", "sub01_mask.nii.gz",
+                 preset="mri-voxelwise", mode="voxelwise")
+habitats = cluster_habitats(result, method="gmm", n_clusters="auto")
+print(habitats.summary())
+habitats.to_nifti("habitats.nii.gz")
+habitats.view()  # launches browser with discrete habitat overlay
 ```
 
 ---
@@ -232,12 +255,44 @@ See `VIEWER_SPEC.md` for the full spec. The viewer is built and functional.
 
 ---
 
-## Phase 3: Analysis (Future)
+## Phase 3: Habitat Clustering (Complete)
 
-- Clustering / dimensionality reduction: GMM, PCA, UMAP on extracted features
-- Model saliency: SHAP / permutation importance back-projected to brain space
-- Cohort mode: subject browser, group overlays, statistical maps
-- Dependencies: `scikit-learn`, `scipy`, `shap`, `umap-learn`
+### Data contract chain
+ExtractionResult → cluster_habitats() → HabitatResult → .view()
+
+### cluster_habitats() pipeline (in order)
+1. Parse input — ExtractionResult or (4D NIfTI path + mask path)
+2. Extract within-mask voxel×feature matrix
+3. Drop constant and >10% NaN features; impute remaining NaNs with median
+4. Spearman redundancy elimination (default threshold |r| > 0.70)
+5. Z-score normalize per feature
+6. Optional PCA (pca_components=None|int|"auto")
+7. Covariance auto-fallback: if n_voxels < n_features×10 → switch to "diag", log warning
+8. k selection if n_clusters="auto": BIC gradient for GMM, Silhouette max for K-means
+9. Final fit at selected k
+10. Back-project labels to full image shape (0 = background)
+11. Compute per-habitat cluster_stats (mean/std/median/p10/p90 per feature)
+12. Warn if any habitat has fewer than min_cluster_size voxels
+13. Return HabitatResult
+
+### Key implementation patterns
+
+**Deferred viewer import in habitat.py** — avoids circular import at runtime:
+```python
+def view(self, **kwargs):
+    from radiomicviz.viewer import launch_viewer_from_habitat
+    launch_viewer_from_habitat(self, **kwargs)
+```
+Never import launch_viewer_from_habitat at module level in habitat.py.
+
+**actc colormap** — NiiVue's built-in discrete/categorical colormap. Always use "actc" (not "categorical" or any custom palette) when loading a habitat label NIfTI in the viewer. The label map must be saved as int16 dtype for NiiVue to render it correctly as discrete colors.
+
+**HabitatResult.probabilities shape** — (x, y, z, k) float32 for GMM; None for K-means. The 4th axis k matches n_clusters. Back-projected to full image shape the same way as label_map (0-probability for background voxels).
+
+**Manifest keys for habitat viewer** — the Flask manifest gains two optional keys:
+  "habitat_map":   url_key | null   (3D int16 NIfTI)
+  "habitat_probs": url_key | null   (4D float32 NIfTI, GMM only)
+Both are always present in the manifest dict (null when not used) so the Jinja2 template never raises KeyError.
 
 ---
 
@@ -327,6 +382,9 @@ Before adding a new dependency:
 13. **Don't add `flask` to `environment.yaml` under conda packages.** It's a pip dep — install via `pip install radiomicviz[viewer]` or add to the `pip:` block in environment.yaml.
 14. **Don't open `errors.log` in `batch.py` without `encoding="utf-8"`.** Unicode in subject IDs or paths will crash the batch run on Windows or non-UTF-8 systems.
 15. **Don't change preset discretization settings independently.** All 7 presets must share `binCount: 32`, `normalize: true`, `normalizeScale: 100`, `voxelArrayShift: 300`, `resampledPixelSpacing: null`. Cross-preset comparisons are only valid when preprocessing is identical.
+16. **Don't import `launch_viewer_from_habitat` at module level in `habitat.py`.** It creates a circular import. Use a local import inside `view()` instead.
+17. **Don't save habitat `label_map` as float.** Save as int16. NiiVue only renders discrete colors with the `actc` colormap on integer volumes.
+18. **Don't pass `n_clusters` > `k_range` max to `cluster_habitats()`.** If forcing `n_clusters` as an int, it must be within `k_range` or clustering will fit only at that k regardless of criteria — this is intentional but can surprise.
 
 ---
 

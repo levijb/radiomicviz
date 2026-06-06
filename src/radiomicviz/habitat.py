@@ -252,14 +252,15 @@ class HabitatResult:
         """
         Launch the interactive browser viewer with the habitat label map.
 
-        Raises
-        ------
-        NotImplementedError
-            Viewer integration is implemented in cluster.py Step E.
+        Parameters
+        ----------
+        port : int
+            Port to bind (0 = auto).
+        open_browser : bool
+            Open the system browser automatically.
         """
-        raise NotImplementedError(
-            "Viewer integration coming in cluster.py Step E"
-        )
+        from radiomicviz.viewer import launch_viewer_from_habitat
+        launch_viewer_from_habitat(self, port=port, open_browser=open_browser)
 
     # -- Display ---------------------------------------------------------------
 

@@ -374,6 +374,202 @@ def generate_slurm(subjects, image_col, mask_col, preset, config, output_dir,
 
 
 # -------------------------------------------------------------------------
+# Clustering helpers (module-level so joblib can pickle them)
+# -------------------------------------------------------------------------
+
+def _parse_n_clusters(value: str):
+    """Accept "auto" or a positive integer string."""
+    return "auto" if value.strip().lower() == "auto" else int(value)
+
+
+def _parse_pca_components(value):
+    """Accept None / "none" → Python None, "auto", or an integer string."""
+    if value is None or str(value).strip().lower() == "none":
+        return None
+    if str(value).strip().lower() == "auto":
+        return "auto"
+    return int(value)
+
+
+
+# -------------------------------------------------------------------------
+# cluster
+# -------------------------------------------------------------------------
+@cli.command("cluster")
+@click.option("--feature-4d", "feature_4d", required=True,
+              type=click.Path(exists=True),
+              help="Path to the 4D NIfTI feature map.")
+@click.option("--mask", required=True,
+              type=click.Path(exists=True),
+              help="Path to the binary mask NIfTI.")
+@click.option("--method",
+              type=click.Choice(["gmm", "kmeans"]), default="gmm", show_default=True,
+              help="Clustering algorithm.")
+@click.option("--n-clusters", "n_clusters",
+              default="auto", show_default=True,
+              help='Number of clusters, or "auto" for BIC/silhouette selection.')
+@click.option("--k-range", "k_range",
+              type=int, nargs=2, default=(2, 6), show_default=True,
+              help="Min and max k evaluated when --n-clusters auto.")
+@click.option("--redundancy-threshold", "redundancy_threshold",
+              type=float, default=0.70, show_default=True,
+              help="Spearman |r| above which lower-variance feature is dropped.")
+@click.option("--pca-components", "pca_components",
+              default=None,
+              help='PCA components: integer, "auto" (95%% variance), or omit for none.')
+@click.option("--gmm-covariance", "gmm_covariance_type",
+              type=click.Choice(["full", "tied", "diag", "spherical"]),
+              default="full", show_default=True,
+              help="GMM covariance structure.")
+@click.option("--random-state", "random_state",
+              type=int, default=42, show_default=True,
+              help="Random seed.")
+@click.option("--min-cluster-size", "min_cluster_size",
+              type=int, default=10, show_default=True,
+              help="Warn when any habitat has fewer voxels than this.")
+@click.option("-o", "--output-dir", "output_dir",
+              default="./habitats/", show_default=True,
+              type=click.Path(),
+              help="Directory for output files.")
+@click.option("--save-probs/--no-save-probs", "save_probs",
+              default=False, show_default=True,
+              help="Save GMM soft-assignment probability 4D NIfTI.")
+@click.option("-v", "--verbose", is_flag=True)
+def cluster_cmd(
+    feature_4d, mask, method, n_clusters, k_range, redundancy_threshold,
+    pca_components, gmm_covariance_type, random_state, min_cluster_size,
+    output_dir, save_probs, verbose,
+):
+    """Cluster voxelwise radiomics features into habitat regions."""
+    _setup_logging(verbose)
+    from radiomicviz.cluster import cluster_habitats
+
+    try:
+        n_clusters_val = _parse_n_clusters(n_clusters)
+        pca_components_val = _parse_pca_components(pca_components)
+    except ValueError as exc:
+        raise click.UsageError(str(exc))
+
+    try:
+        result = cluster_habitats(
+            source=feature_4d,
+            mask=mask,
+            method=method,
+            n_clusters=n_clusters_val,
+            k_range=tuple(k_range),
+            redundancy_threshold=redundancy_threshold,
+            pca_components=pca_components_val,
+            gmm_covariance_type=gmm_covariance_type,
+            random_state=random_state,
+            min_cluster_size=min_cluster_size,
+        )
+
+        out = Path(output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        result.to_nifti(out / "habitats.nii.gz")
+        result.to_csv(out / "cluster_stats.csv")
+
+        if save_probs:
+            if result.probabilities is not None:
+                result.to_prob_nifti(out / "habitats_probs.nii.gz")
+            else:
+                click.secho(
+                    "Warning: --save-probs ignored (K-means has no probabilities)",
+                    fg="yellow", err=True,
+                )
+
+        click.echo(result.summary())
+        click.echo(f"\nOutputs written to {out}/")
+
+    except Exception as exc:
+        click.secho(f"Error: {exc}", fg="red", err=True)
+        raise SystemExit(1)
+
+
+# -------------------------------------------------------------------------
+# batch-cluster
+# -------------------------------------------------------------------------
+@cli.command("batch-cluster")
+@click.option("-s", "--subjects", required=True,
+              type=click.Path(exists=True),
+              help="CSV with one row per subject.")
+@click.option("--feature-4d-col", "feature_4d_col", required=True,
+              help="Column name containing 4D NIfTI paths.")
+@click.option("--mask-col", "mask_col", required=True,
+              help="Column name containing mask NIfTI paths.")
+@click.option("--method",
+              type=click.Choice(["gmm", "kmeans"]), default="gmm", show_default=True)
+@click.option("--n-clusters", "n_clusters",
+              default="auto", show_default=True,
+              help='Number of clusters, or "auto".')
+@click.option("--k-range", "k_range",
+              type=int, nargs=2, default=(2, 6), show_default=True)
+@click.option("--redundancy-threshold", "redundancy_threshold",
+              type=float, default=0.70, show_default=True)
+@click.option("--pca-components", "pca_components", default=None,
+              help='PCA components: integer, "auto", or omit for none.')
+@click.option("--gmm-covariance", "gmm_covariance_type",
+              type=click.Choice(["full", "tied", "diag", "spherical"]),
+              default="full", show_default=True)
+@click.option("--random-state", "random_state",
+              type=int, default=42, show_default=True)
+@click.option("--min-cluster-size", "min_cluster_size",
+              type=int, default=10, show_default=True)
+@click.option("-o", "--output-dir", "output_dir",
+              default="./habitats/", show_default=True, type=click.Path())
+@click.option("-n", "--n-jobs", "n_jobs",
+              type=int, default=1, show_default=True,
+              help="Parallel workers (joblib).")
+@click.option("--save-probs/--no-save-probs", "save_probs", default=False)
+@click.option("-v", "--verbose", is_flag=True)
+def batch_cluster_cmd(
+    subjects, feature_4d_col, mask_col, method, n_clusters, k_range,
+    redundancy_threshold, pca_components, gmm_covariance_type, random_state,
+    min_cluster_size, output_dir, n_jobs, save_probs, verbose,
+):
+    """Cluster voxelwise features for a cohort of subjects."""
+    _setup_logging(verbose)
+
+    try:
+        n_clusters_val = _parse_n_clusters(n_clusters)
+        pca_components_val = _parse_pca_components(pca_components)
+    except ValueError as exc:
+        raise click.UsageError(str(exc))
+
+    try:
+        from radiomicviz.cluster import batch_cluster
+        manifest = batch_cluster(
+            subjects=subjects,
+            feature_4d_col=feature_4d_col,
+            mask_col=mask_col,
+            output_dir=output_dir,
+            n_jobs=n_jobs,
+            save_probs=save_probs,
+            method=method,
+            n_clusters=n_clusters_val,
+            k_range=tuple(k_range),
+            redundancy_threshold=redundancy_threshold,
+            pca_components=pca_components_val,
+            gmm_covariance_type=gmm_covariance_type,
+            random_state=random_state,
+            min_cluster_size=min_cluster_size,
+        )
+        click.echo(
+            f"\nBatch complete: {manifest['succeeded_rows']}/{manifest['total_rows']} succeeded "
+            f"({manifest['failed_rows']} failed) in {manifest['total_time_seconds']:.1f}s"
+        )
+        click.echo(f"Manifest: {manifest['manifest_path']}")
+        if manifest["failed_rows"] > 0:
+            click.secho(
+                f"{manifest['failed_rows']} subject(s) failed — see manifest for details",
+                fg="yellow", err=True,
+            )
+    except Exception as exc:
+        click.secho(f"Error: {exc}", fg="red", err=True)
+        raise SystemExit(1)
+
+
+# -------------------------------------------------------------------------
 # view
 # -------------------------------------------------------------------------
 @cli.command()

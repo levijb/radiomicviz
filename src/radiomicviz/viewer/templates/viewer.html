@@ -351,6 +351,29 @@
     </div>
     {% endif %}
 
+    {% if manifest.habitat_map %}
+    <!-- ── Habitats ── -->
+    <div class="section">
+      <div class="section-label">Habitats</div>
+      <div class="toggle-row">
+        <label>Show habitats</label>
+        <input type="checkbox" id="habitat-visible" checked onchange="onHabitatToggle()">
+      </div>
+      <div class="row">
+        <label>Opacity</label>
+        <input type="range" id="habitat-opacity" min="0" max="1" step="0.05" value="0.7"
+               oninput="onHabitatOpacity(this)">
+        <span class="val" id="habitat-opacity-val">0.70</span>
+      </div>
+      {% if manifest.habitat_probs %}
+      <div class="toggle-row">
+        <label>Show probs</label>
+        <input type="checkbox" id="probs-visible" onchange="onProbsToggle()">
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
     <!-- ── Actions ── -->
     <div class="section">
       <div class="section-label">Actions</div>
@@ -410,6 +433,12 @@ let maskOpacity  = 0.3;
 let map4dColormap = "viridis";
 let map4dOpacity  = 0.7;
 let vol4dId       = null;
+
+let habitatVisible = true;
+let habitatOpacity = 0.7;
+let habitatVolId   = null;
+let probsVisible   = false;
+let probsVolId     = null;
 
 let sidebarOpen      = true;
 let currentViewMode  = "multi";
@@ -678,6 +707,13 @@ function buildVolumeList() {
   if (MANIFEST.feature_4d)
     vols.push({ url:`/data/${MANIFEST.feature_4d}`, colormap:map4dColormap, opacity:map4dOpacity, colorbarVisible:false });
 
+  if (MANIFEST.habitat_map && habitatVisible)
+    vols.push({ url:`/data/${MANIFEST.habitat_map}`, colormap:"actc",
+                opacity:habitatOpacity, colorbarVisible:false });
+  if (MANIFEST.habitat_probs && probsVisible)
+    vols.push({ url:`/data/${MANIFEST.habitat_probs}`, colormap:"viridis",
+                opacity:0.5, colorbarVisible:false });
+
   return vols;
 }
 
@@ -723,6 +759,16 @@ async function reloadVolumes() {
     if (MANIFEST.feature_4d) {
       const idx = nv.volumes.findIndex(v => v.url && v.url.includes(MANIFEST.feature_4d));
       if (idx >= 0) vol4dId = nv.volumes[idx].id;
+    }
+
+    // ── Habitat and probs tracking ────────────────────────────────────
+    if (MANIFEST.habitat_map) {
+      const idx = nv.volumes.findIndex(v => v.url && v.url.includes(MANIFEST.habitat_map));
+      if (idx >= 0) habitatVolId = nv.volumes[idx].id;
+    }
+    if (MANIFEST.habitat_probs) {
+      const idx = nv.volumes.findIndex(v => v.url && v.url.includes(MANIFEST.habitat_probs));
+      if (idx >= 0) probsVolId = nv.volumes[idx].id;
     }
 
     // ── Flat overlay colorbar ─────────────────────────────────────────
@@ -963,6 +1009,23 @@ function onColormap4DChange(el) { map4dColormap = el.value; reloadVolumes(); }
 function onMap4DOpacity(el)     {
   map4dOpacity = parseFloat(el.value);
   document.getElementById("map4d-opacity-val").textContent = map4dOpacity.toFixed(2);
+  reloadVolumes();
+}
+
+// ── Habitats ─────────────────────────────────────────────────
+function onHabitatToggle() {
+  habitatVisible = document.getElementById("habitat-visible").checked;
+  reloadVolumes();
+}
+function onHabitatOpacity(el) {
+  habitatOpacity = parseFloat(el.value);
+  document.getElementById("habitat-opacity-val").textContent =
+    habitatOpacity.toFixed(2);
+  const vol = nv.volumes.find(v => v.id === habitatVolId);
+  if (vol) { vol.opacity = habitatOpacity; nv.updateGLVolume(); nv.drawScene(); }
+}
+function onProbsToggle() {
+  probsVisible = document.getElementById("probs-visible").checked;
   reloadVolumes();
 }
 

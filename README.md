@@ -2,7 +2,7 @@
 
 Interactive 3D radiomics extraction, visualization, and analysis for neuroimaging.
 
-RadiomicViz wraps PyRadiomics with strict input validation, built-in presets, structured output, and cluster submission tooling.
+RadiomicViz wraps PyRadiomics with strict input validation, built-in presets, structured output, habitat clustering, and cluster submission tooling.
 
 ## Installation
 
@@ -423,6 +423,81 @@ radiomicviz generate-slurm \
 
 Generated scripts handle conda activation, logging, and error reporting. The `array` strategy also generates a `merge_results.sh` script to combine outputs after all tasks complete.
 
+## Habitat Clustering
+
+After voxelwise extraction, `cluster_habitats()` groups voxels within the ROI into spatially distinct imaging habitats using Gaussian Mixture Models (GMM) or K-means clustering.
+
+### Python API
+
+```python
+from radiomicviz import extract, cluster_habitats
+
+# Step 1: voxelwise extraction
+result = extract(
+    "sub01_T1.nii.gz",
+    "sub01_mask.nii.gz",
+    preset="mri-voxelwise",
+    mode="voxelwise",
+)
+
+# Step 2: cluster into habitats
+habitats = cluster_habitats(
+    result,
+    method="gmm",          # "gmm" (default) or "kmeans"
+    n_clusters="auto",     # auto-selects k in range 2–6 via BIC
+    redundancy_threshold=0.70,   # Spearman |r| cutoff for feature filtering
+    pca_components=None,   # None, int, or "auto" (95% variance)
+    random_state=42,
+)
+
+print(habitats.summary())           # human-readable summary
+habitats.to_nifti("habitats.nii.gz")  # 3D integer label map
+habitats.to_csv("cluster_stats.csv")  # per-habitat feature statistics
+habitats.view()                     # browser viewer with discrete overlay
+```
+
+### CLI
+
+```bash
+# Single subject
+radiomicviz cluster \
+  --feature-4d features_4d.nii.gz \
+  --mask ROI.nii.gz \
+  --method gmm \
+  --n-clusters auto \
+  --output-dir ./habitats/
+
+# Batch
+radiomicviz batch-cluster \
+  --subjects cohort.csv \
+  --feature-4d-col feature_4d_path \
+  --mask-col Mask \
+  --output-dir ./habitats/ \
+  --n-jobs 4
+```
+
+### Outputs
+
+| File | Description |
+|---|---|
+| `habitats.nii.gz` | 3D integer NIfTI — habitat label per voxel (0 = background) |
+| `habitats_probs.nii.gz` | 4D float NIfTI — GMM soft assignment probabilities (optional) |
+| `cluster_stats.csv` | Per-habitat mean/std/median/p10/p90 for each feature |
+| `cluster_stats.metadata.json` | Clustering provenance (method, k, features used/dropped) |
+| `batch_manifest.json` | Batch run summary — successes, failures, timing (batch mode) |
+
+### Clustering pipeline
+
+Each `cluster_habitats()` call runs in order: drop bad features → impute NaNs → Spearman redundancy elimination → z-score normalize → optional PCA → auto-select k (BIC gradient for GMM, Silhouette max for K-means) → fit → back-project to image space → compute per-habitat statistics.
+
+### Methods
+
+Habitat clustering methodology informed by:
+
+- Prior O, et al. (2024). Identification of Precise 3D CT Radiomics for Habitat Computation by Machine Learning in Cancer. *Radiology: Artificial Intelligence*, 6(2), e230118. https://doi.org/10.1148/ryai.230118
+- Bernatowicz K, et al. (2021). Robust imaging habitat computation using voxel-wise radiomics features. *Scientific Reports*, 11, 20133. https://doi.org/10.1038/s41598-021-99701-2
+- Reference implementation: https://github.com/radiomicsgroup/precise-habitats
+
 ## Running the Tests
 
 ### Prerequisites
@@ -459,6 +534,7 @@ pytest tests/test_roi_extraction.py tests/test_habitat_extraction.py tests/test_
 | `tests/test_roi_extraction.py` | ROI extraction with mri-default/texture/firstorder; CSV and NIfTI export |
 | `tests/test_habitat_extraction.py` | mri-voxelwise preset; curated feature count; clustering-readiness |
 | `tests/test_batch_extraction.py` | batch_extract(): error isolation, parallel runs, combined CSV, manifest |
+| `tests/test_clustering.py` | HabitatResult export methods, cluster_habitats() pipeline (GMM + K-means), batch_cluster() |
 
 See [TESTING.md](TESTING.md) for full details on prerequisites, individual test selection, and reading failures.
 
@@ -469,6 +545,14 @@ pip install -e ".[dev]"
 ruff check src/           # lint
 mypy src/radiomicviz/     # type check
 ```
+
+## Methods & Attribution
+
+Habitat clustering methodology informed by:
+
+- Prior et al. (2024). Identification of Precise 3D CT Radiomics for Habitat Computation by Machine Learning in Cancer. *Radiology: Artificial Intelligence*, 6(2), e230118.
+- Bernatowicz et al. (2021). Robust imaging habitat computation using voxel-wise radiomics features. *Scientific Reports*, 11, 20133.
+- Source code reference: https://github.com/radiomicsgroup/precise-habitats
 
 ## License
 

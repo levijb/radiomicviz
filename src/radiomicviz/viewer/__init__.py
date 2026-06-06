@@ -28,6 +28,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from radiomicviz.result import ExtractionResult
+    from radiomicviz.habitat import HabitatResult
 
 logger = logging.getLogger("radiomicviz.viewer")
 
@@ -173,6 +174,8 @@ def launch_viewer(
         "feature_4d_features": feat4d_features,
         "feature_4d_n_frames": feat4d_n_frames,
         "backgrounds": backgrounds,  # sibling NIfTIs for background swap
+        "habitat_map": None,
+        "habitat_probs": None,
     }
 
     _serve(files=files, manifest=manifest, port=port, open_browser=open_browser)
@@ -217,6 +220,107 @@ def launch_viewer_from_result(
     def _cleanup():
         shutil.rmtree(tmp_dir, ignore_errors=True)
         logger.debug("Viewer temp dir cleaned up")
+
+    _serve(files=files, manifest=manifest, port=port, open_browser=open_browser,
+           on_stop=_cleanup)
+
+
+def launch_viewer_from_habitat(
+    habitat: "HabitatResult",
+    result: Optional["ExtractionResult"] = None,
+    image: Optional[str | Path] = None,
+    mask: Optional[str | Path] = None,
+    show_probs: bool = False,
+    port: int = 0,
+    open_browser: bool = True,
+) -> None:
+    """
+    Launch the browser viewer from a HabitatResult.
+
+    Parameters
+    ----------
+    habitat : HabitatResult
+        Clustering result from ``cluster_habitats()``.
+    result : ExtractionResult, optional
+        If provided, the background image and (for voxelwise results) feature
+        overlays are also served alongside the habitat map.
+    image : str or Path, optional
+        Background image path. Required when ``result`` is not provided.
+    mask : str or Path, optional
+        Mask NIfTI path. Used when ``result`` does not supply one.
+    show_probs : bool
+        Serve the 4D GMM probability map when True and
+        ``habitat.probabilities`` is not None.
+    port : int
+        Port to bind (0 = auto).
+    open_browser : bool
+        Open the system browser automatically.
+    """
+    _check_flask()
+
+    # Resolve background image
+    if result is not None:
+        image_path = Path(result.metadata.image_path)
+    elif image is not None:
+        image_path = Path(image)
+    else:
+        raise ValueError(
+            "A background image is required. Provide 'result' (ExtractionResult) "
+            "or 'image' (path to NIfTI)."
+        )
+
+    tmp_dir = tempfile.mkdtemp(prefix="radiomicviz_habitat_")
+    logger.debug("Habitat viewer temp dir: %s", tmp_dir)
+
+    try:
+        tmp = Path(tmp_dir)
+
+        # Background image
+        _link_or_copy(image_path.resolve(), tmp / image_path.name)
+
+        # Mask + feature overlays — reuse existing helpers when result is available
+        mask_name: Optional[str] = None
+        overlays: list[str] = []
+        if result is not None:
+            _prepare_result_files(result, tmp_dir, features=None)
+            base = _build_result_manifest(result, tmp_dir, features=None)
+            mask_name = base["mask"]
+            overlays = base["overlays"]
+        elif mask is not None:
+            mask_src = Path(mask).resolve()
+            _link_or_copy(mask_src, tmp / mask_src.name)
+            mask_name = mask_src.name
+
+        # Habitat label map (int16)
+        habitat.to_nifti(tmp / "habitats.nii.gz")
+        habitat_map_key: Optional[str] = "habitats.nii.gz"
+
+        # Probability map (float32 4D), optional
+        habitat_probs_key: Optional[str] = None
+        if show_probs and habitat.probabilities is not None:
+            habitat.to_prob_nifti(tmp / "habitats_probs.nii.gz")
+            habitat_probs_key = "habitats_probs.nii.gz"
+
+        files = _scan_dir(tmp_dir)
+        manifest = {
+            "image": image_path.name,
+            "mask": mask_name,
+            "regions": {},
+            "overlays": overlays,
+            "feature_4d": None,
+            "feature_4d_features": [],
+            "feature_4d_n_frames": 1,
+            "backgrounds": [image_path.name],
+            "habitat_map": habitat_map_key,
+            "habitat_probs": habitat_probs_key,
+        }
+    except Exception:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
+
+    def _cleanup():
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        logger.debug("Habitat viewer temp dir cleaned up")
 
     _serve(files=files, manifest=manifest, port=port, open_browser=open_browser,
            on_stop=_cleanup)
@@ -367,6 +471,8 @@ def _build_result_manifest(
         "feature_4d": None,
         "feature_4d_features": [],
         "feature_4d_n_frames": 1,
+        "habitat_map": None,
+        "habitat_probs": None,
     }
 
 
